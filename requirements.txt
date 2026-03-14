@@ -1,0 +1,15 @@
+transformers
+torch
+bitsandbytes
+accelerate
+opencv-python
+pandas
+Pillow
+SQLAlchemy
+# New additions below
+psycopg2-binary      # PostgreSQL driver
+pymilvus             # Milvus client
+sentence-transformers # For creating vector embeddings
+nltk
+rouge-score 
+bert-score
