@@ -17,3 +17,8 @@ dist/
 
 # Logs
 *.log
+
+.vscode/
+Benchmarking/
+hf_cache/
+utils/

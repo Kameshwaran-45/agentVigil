@@ -1,141 +1,166 @@
-"""
-Perception Engine — Stage 1: Knowledge Base Construction
-=========================================================
-WHAT:  Loads LLaVA-OneVision-7B and generates surveillance captions
-       from extracted frame images.
-
-WHY:   This is the "eyes" of AgentVigil. Raw frames are meaningless
-       to the reasoning system — the VLM converts visual information
-       into structured text that the agent can reason about.
-
-HOW:   Frames → surveillance-tuned prompt with few-shot examples
-       → LLaVA-OV generates caption + event classification
-       → 4-bit quantization keeps VRAM at ~5GB
-
-SELECTED MODEL: LLaVA-OneVision-7B [IMAGE mode]
-  Won ALL 4 crime categories in our benchmark:
-  - Robbery ✅  Shoplifting ✅  Road Accident ✅  Vandalism ✅
-  - Keyword Hit Rate: 1.53 (best of 9 configurations)
-  - Latency: ~11.6s per chunk
-
-CONNECTS TO: video_processor.py provides frame_paths
-             database.py stores the generated captions
-             agent.py reads captions for reasoning
-"""
-
-import time
-import torch
+import re
 from typing import List, Tuple
-from PIL import Image
-from config import PRIMARY_VLM, SYSTEM_PROMPT, FEW_SHOT_EXAMPLES, EVENT_CATEGORIES
 
+from config import VLM_REGISTRY, DEFAULT_VLM
+from adapters import ADAPTER_CLASSES
+
+
+# ══════════════════════════════════════════════════════════════════════
+# EVENT EXTRACTION  (shared utility — no model dependency)
+# ══════════════════════════════════════════════════════════════════════
+
+# Canonical category aliases for normalisation
+CANONICAL_CATEGORIES = [
+    "Abuse", "Arrest", "Arson", "Assault", "Burglary",
+    "Explosion", "Fighting", "RoadAccidents", "Robbery",
+    "Shooting", "Shoplifting", "Stealing", "Vandalism",
+    "Normal_Videos_event",
+]
+
+CATEGORY_NORMALIZE = {
+    "abuse": "Abuse", "arrest": "Arrest", "arson": "Arson",
+    "assault": "Assault", "burglary": "Burglary",
+    "explosion": "Explosion", "fighting": "Fighting",
+    "roadaccidents": "RoadAccidents", "robbery": "Robbery",
+    "shooting": "Shooting", "shoplifting": "Shoplifting",
+    "stealing": "Stealing", "vandalism": "Vandalism",
+    "normal_videos_event": "Normal_Videos_event",
+    "normal": "Normal_Videos_event",
+    "road accident": "RoadAccidents", "road accidents": "RoadAccidents",
+    "road accident / vehicle collision": "RoadAccidents",
+    "vehicle collision": "RoadAccidents",
+    "robbery / armed robbery": "Robbery", "armed robbery": "Robbery",
+    "burglary / breaking and entering": "Burglary",
+    "breaking and entering": "Burglary",
+    "vandalism / property damage": "Vandalism",
+    "property damage": "Vandalism",
+    "arson / fire": "Arson", "fire": "Arson",
+    "normal activity": "Normal_Videos_event",
+    "normal_videos": "Normal_Videos_event",
+    "normal videos event": "Normal_Videos_event",
+    "normal video": "Normal_Videos_event",
+}
+
+
+def _resolve_compound_category(raw: str) -> str:
+    """
+    Resolve labels like "Shoplifting / Stealing" without hardcoded
+    cross-category collapse.
+
+    Strategy: split by separators and return the first token that maps
+    cleanly to a canonical category.
+    """
+    pieces = re.split(r"\s*(?:/|,|\bor\b|\||;)\s*", raw.strip(), flags=re.IGNORECASE)
+    for piece in pieces:
+        part = piece.strip().lower()
+        if not part:
+            continue
+        if part in CATEGORY_NORMALIZE:
+            mapped = CATEGORY_NORMALIZE[part]
+            if mapped in CANONICAL_CATEGORIES:
+                return mapped
+        for canon in CANONICAL_CATEGORIES:
+            if part == canon.lower():
+                return canon
+    return ""
+
+
+def normalize_category(raw: str) -> str:
+    if not raw:
+        return "Normal_Videos_event"
+    clean = raw.strip().lower()
+
+    # Handle compound labels first to avoid accidental cross-category aliases.
+    if any(sep in clean for sep in ["/", "|", ",", ";"]) or re.search(r"\bor\b", clean):
+        resolved = _resolve_compound_category(clean)
+        if resolved:
+            return resolved
+
+    if clean in CATEGORY_NORMALIZE:
+        return CATEGORY_NORMALIZE[clean]
+    clean2 = re.sub(r"[/_\-]", " ", clean).strip()
+    if clean2 in CATEGORY_NORMALIZE:
+        return CATEGORY_NORMALIZE[clean2]
+    for canon in CANONICAL_CATEGORIES:
+        if clean.startswith(canon.lower()):
+            return canon
+    return raw
+
+
+def extract_event_from_caption(caption: str) -> str:
+    """
+    Parse the EVENT: <category> tag the prompt instructs the model to emit.
+
+    Uses findall + last match to avoid picking up few-shot example tags
+    that appear earlier in the string.
+    """
+    patterns = [
+        r"EVENT:\s*([A-Za-z_/\s\-]+?)(?:\.|$|\n|\"|\')",
+        r"Event:\s*([A-Za-z_/\s\-]+?)(?:\.|$|\n|\"|\')",
+        r"event:\s*([A-Za-z_/\s\-]+?)(?:\.|$|\n|\"|\')",
+        r"Classification:\s*([A-Za-z_/\s\-]+?)(?:\.|$|\n|\"|\')",
+    ]
+    for p in patterns:
+        matches = re.findall(p, caption)
+        if matches:
+            tag = matches[-1].strip().rstrip(".")
+            canon = normalize_category(tag)
+            if canon in CANONICAL_CATEGORIES:
+                return canon
+    return "Normal_Videos_event"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PERCEPTION ENGINE — public facade used by app.py
+# ══════════════════════════════════════════════════════════════════════
 
 class PerceptionEngine:
-    def __init__(self):
-        self.model = None
-        self.processor = None
-        self.loaded = False
+    """
+    Thin facade over the selected VLM adapter.
 
-    def load(self):
-        """Load VLM into GPU. Call once at startup."""
-        from transformers import (
-            AutoProcessor,
-            LlavaOnevisionForConditionalGeneration,
-            BitsAndBytesConfig,
-        )
+    app.py calls:
+        perception.caption_chunk(frame_paths, prompt_type)
+        perception.extract_event_type(caption)
+        perception.unload()
 
-        print(f"[VLM] Loading {PRIMARY_VLM}...")
-        qconfig = BitsAndBytesConfig(
-            load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16
-        )
-        self.model = LlavaOnevisionForConditionalGeneration.from_pretrained(
-            PRIMARY_VLM,
-            quantization_config=qconfig,
-            device_map="auto",
-            trust_remote_code=True,
-        )
-        self.processor = AutoProcessor.from_pretrained(
-            PRIMARY_VLM, trust_remote_code=True
-        )
-        self.loaded = True
-        print(f"[VLM] Ready on {next(self.model.parameters()).device}")
+    Switching models requires constructing a new PerceptionEngine with
+    a different model_key.
+    """
 
-    def caption_chunk(self, frame_paths: List[str]) -> Tuple[str, float]:
-        """
-        Generate surveillance caption from frame images.
-        Returns: (caption_text, latency_seconds)
-        """
-        if not self.loaded:
-            self.load()
-
-        images = [Image.open(p).convert("RGB") for p in frame_paths]
-        n = len(images)
-
-        user_prompt = (
-            f"These are {n} sequential frames from surveillance footage.\n\n"
-            f"{FEW_SHOT_EXAMPLES}\n\n"
-            f"Analyze the temporal progression across all {n} frames. "
-            f"Describe the event and classify it."
-        )
-
-        image_content = [{"type": "image"} for _ in images]
-        user_content = image_content + [
-            {"type": "text", "text": f"{SYSTEM_PROMPT}\n\n{user_prompt}"}
-        ]
-        messages = [{"role": "user", "content": user_content}]
-        text_input = self.processor.apply_chat_template(
-            messages, add_generation_prompt=True
-        )
-
-        start = time.time()
-        inputs = self.processor(
-            text=text_input, images=images, return_tensors="pt"
-        ).to(self.model.device, dtype=torch.float16)
-
-        with torch.no_grad():
-            gen_ids = self.model.generate(
-                **inputs, max_new_tokens=250, do_sample=False
+    def __init__(self, model_key: str = DEFAULT_VLM):
+        self.model_key = model_key
+        cfg = VLM_REGISTRY.get(model_key)
+        if cfg is None:
+            raise ValueError(
+                f"Unknown model key '{model_key}'. "
+                f"Available: {list(VLM_REGISTRY.keys())}"
             )
-        latency = time.time() - start
+        adapter_cls = ADAPTER_CLASSES.get(cfg["adapter"])
+        if adapter_cls is None:
+            raise ValueError(
+                f"Unknown adapter '{cfg['adapter']}' for model '{model_key}'."
+            )
+        from adapters.base import BaseVideoAdapter
+        self._adapter: BaseVideoAdapter = adapter_cls(cfg["model_id"])
+        self.display_name = cfg["display_name"]
 
-        trimmed = [o[len(i):] for i, o in zip(inputs.input_ids, gen_ids)]
-        caption = self.processor.batch_decode(
-            trimmed, skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )[0].strip()
+    def load(self) -> None:
+        self._adapter.load()
 
-        return caption, latency
+    def caption_chunk(
+        self,
+        frame_paths: List[str],
+        prompt_type: str = "standard",
+        prev_context: str = "",
+    ) -> Tuple[str, float]:
+        return self._adapter.caption_chunk(frame_paths, prompt_type, prev_context)
 
     def extract_event_type(self, caption: str) -> str:
-        """Parse event classification from caption text."""
-        cl = caption.lower()
+        return extract_event_from_caption(caption)
 
-        # Direct match first
-        for cat in EVENT_CATEGORIES:
-            if cat.lower() in cl:
-                return cat
+    def unload(self) -> None:
+        self._adapter.unload()
 
-        # Keyword fallback
-        keyword_map = {
-            "Road Accident / Vehicle Collision": ["accident", "collision", "crash", "rear-end", "wreck"],
-            "Robbery / Armed Robbery": ["robbery", "rob", "mugging", "holdup", "snatch"],
-            "Fighting / Assault": ["fight", "assault", "punch", "kick", "brawl", "attack"],
-            "Shoplifting / Stealing": ["shoplifting", "steal", "theft", "shoplift", "conceal"],
-            "Vandalism / Property Damage": ["vandal", "smash", "destroy", "graffiti", "damage"],
-            "Arson / Fire": ["arson", "fire", "flames", "burning", "smoke"],
-        }
-
-        for event_type, keywords in keyword_map.items():
-            if any(kw in cl for kw in keywords):
-                return event_type
-
-        return "Normal Activity"
-
-    def unload(self):
-        if self.model:
-            del self.model, self.processor
-            self.model = self.processor = None
-            self.loaded = False
-            import gc; gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+    @property
+    def loaded(self) -> bool:
+        return self._adapter.loaded

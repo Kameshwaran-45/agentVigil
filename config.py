@@ -9,6 +9,11 @@ BENCHMARK-PROVEN VALUES — DO NOT CHANGE WITHOUT RE-BENCHMARKING:
   - Sampling: "uniform" strategy
   - Frames: 1fps extraction
   - Max chunks: 50 (benchmark) / 100 (production)
+
+PROMPTS
+  Prompt text does NOT live here.
+  See the prompts/ folder — one .py file per variant.
+  Use prompt_loader.get_prompt_registry() to enumerate them at runtime.
 """
 
 import os
@@ -16,27 +21,49 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── VLM (Stage 1) ──────────────────────────────────────────────────
-PRIMARY_VLM = "llava-hf/llava-onevision-qwen2-7b-ov-hf"
-PRIMARY_VLM_NAME = "LLaVA-OneVision-7B"
+# ── VLM Registry ───────────────────────────────────────────────────
+VLM_REGISTRY = {
+    "LLaVA-OneVision-7B": {
+        "adapter": "LLaVAAdapter",
+        "model_id": "llava-hf/llava-onevision-qwen2-7b-ov-hf",
+        "display_name": "LLaVA-OneVision-7B (4-bit)",
+        "description": "Production model. 7B params, image-based, 4-bit quant.",
+    },
+    "VideoLLaMA3-2B": {
+        "adapter": "VideoLLaMA3Adapter",
+        "model_id": "DAMO-NLP-SG/VideoLLaMA3-2B",
+        "display_name": "VideoLLaMA3-2B",
+        "description": "Lightweight video-native model. Lower VRAM, faster.",
+    },
+}
+
+DEFAULT_VLM = "VideoLLaMA3-2B"
+
+# Legacy aliases
+PRIMARY_VLM = VLM_REGISTRY[DEFAULT_VLM]["model_id"]
+PRIMARY_VLM_NAME = VLM_REGISTRY[DEFAULT_VLM]["display_name"]
+
+# ── Prompt folder ──────────────────────────────────────────────────
+PROMPTS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts")
 
 # ── Embedding Model ─────────────────────────────────────────────────
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 
-# ── Adaptive Chunking (EXACT copy from benchmark_vlm.py) ───────────
-# These produced our best results. Do not change without re-benchmarking.
+# ── Adaptive Chunking ───────────────────────────────────────────────
 CHUNK_DURATION_TIERS = [
-    (30,           3),     # Videos ≤ 30s   → 3s chunks
-    (120,          4),     # Videos ≤ 2min  → 4s chunks (benchmark sweet spot)
-    (300,          6),     # Videos ≤ 5min  → 6s chunks
-    (1800,         10),    # Videos ≤ 30min → 10s chunks
-    (float('inf'), 15),   # Videos > 30min → 15s chunks
+    (30,           10),
+    (120,          20),
+    (300,          30),
+    (1800,         50),
+    (float('inf'), 60),
 ]
 
-MAX_CHUNKS = 100                    # Production cap (benchmark used 50)
-FRAMES_PER_SECOND = 1               # 1 frame per second within each chunk
-
+MAX_CHUNKS = 100
+FRAMES_PER_SECOND = 10
+CHUNK_OVERLAP_SEC = 0.0
+CHUNK_CONTEXT_ENABLED = True
+CHUNK_CONTEXT_MAX_CHARS = 320
 # Sampling strategy when total chunks exceed MAX_CHUNKS
 # Options: "uniform" (default, benchmark-proven), "edges", "all"
 SAMPLING_STRATEGY = "uniform"
@@ -45,7 +72,6 @@ SAMPLING_STRATEGY = "uniform"
 # Set to 0.0 to replicate exact benchmark behavior (hard cuts).
 # Set to 1.0 for 1-second overlap between chunks (catches boundary events).
 # Recommendation: 0.0 for benchmarking, 1.0 for production deployment.
-CHUNK_OVERLAP_SEC = 0.0
 
 # ── CLIP Pre-Filter ─────────────────────────────────────────────────
 CLIP_ENABLED = True
@@ -81,7 +107,7 @@ CLIP_NORMAL_PROMPTS = [
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "agentvigil")
-POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 POSTGRES_URL = (
     f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
@@ -101,89 +127,18 @@ SIMILAR_INCIDENT_TOP_K = 5
 
 # ── Event Categories ────────────────────────────────────────────────
 EVENT_CATEGORIES = [
-    "Road Accident / Vehicle Collision",
-    "Robbery / Armed Robbery",
-    "Burglary / Breaking and Entering",
-    "Fighting / Assault",
-    "Shoplifting / Stealing",
-    "Vandalism / Property Damage",
-    "Arson / Fire",
-    "Normal Activity",
+    "Abuse", "Arrest", "Arson", "Assault", "Burglary",
+    "Explosion", "Fighting", "RoadAccidents", "Robbery",
+    "Shooting", "Shoplifting", "Stealing", "Vandalism",
+    "Normal_Videos_event",
 ]
 
-# ── Surveillance Keywords (Tier 1) ─────────────────────────────────
-EVENT_KEYWORDS = {
-    "Road Accident / Vehicle Collision": [
-        "accident", "collision", "crash", "impact", "hit", "rear-end",
-        "wreck", "smash", "vehicle", "debris", "rollover",
-    ],
-    "Robbery / Armed Robbery": [
-        "robbery", "rob", "robbing", "armed", "holdup", "mugging",
-        "threaten", "weapon", "gun", "knife", "demand",
-    ],
-    "Fighting / Assault": [
-        "fight", "fighting", "assault", "punch", "kick", "attack",
-        "brawl", "violence", "struggle", "hit", "beating",
-    ],
-    "Shoplifting / Stealing": [
-        "steal", "shoplifting", "theft", "shoplift", "grab", "conceal",
-        "pocket", "snatch", "take", "merchandise",
-    ],
-    "Vandalism / Property Damage": [
-        "vandalism", "vandal", "damage", "smash", "destroy", "graffiti",
-        "break", "shatter", "deface", "litter",
-    ],
-    "Arson / Fire": [
-        "arson", "fire", "flames", "burning", "ignite", "smoke",
-        "explosion", "torch", "blaze",
-    ],
-}
-
-ALL_CRIME_KEYWORDS = list(set(
-    kw for keywords in EVENT_KEYWORDS.values() for kw in keywords
-))
-
-# ── Surveillance Prompt (same as benchmark_vlm.py) ──────────────────
-SYSTEM_PROMPT = """You are an expert AI surveillance analyst for the AgentVigil security system.
-Your task is to analyze a sequence of video frames extracted from CCTV/surveillance footage and
-produce a precise, factual description of the event occurring.
-
-Focus on:
-1. **Actions and movements**: What are the subjects doing? Are they running, colliding, grabbing, breaking, fighting?
-2. **Anomalous behavior**: Identify anything that deviates from normal activity — sudden motion, impact, aggression, stealth.
-3. **Temporal progression**: Describe how the scene evolves across the frames (e.g., "In the first frames... then... finally...").
-4. **Key objects**: Vehicles, weapons, tools, bags, broken items — anything relevant to the event.
-
-You MUST classify the event into one of these categories if applicable:
-- Road Accident / Vehicle Collision
-- Robbery / Armed Robbery
-- Burglary / Breaking and Entering
-- Fighting / Assault
-- Shoplifting / Stealing
-- Vandalism / Property Damage
-- Arson / Fire
-- Normal Activity (only if nothing anomalous is detected)
-
-Be specific and decisive. Do NOT give vague descriptions like "a busy street with cars"."""
-
-FEW_SHOT_EXAMPLES = """Here are examples of the analysis quality expected:
-
-Example 1 — Road Accident:
-"A white sedan traveling at high speed rear-ends a stationary black SUV at an intersection. The first frames show the sedan approaching rapidly. In the middle frames, the moment of collision is visible with debris scattering. The final frames show both vehicles stopped with the sedan's hood crumpled. EVENT: Road Accident / Vehicle Collision."
-
-Example 2 — Robbery:
-"Two individuals approach a person walking on a sidewalk from behind. One grabs the victim's bag while the other blocks their path. The victim struggles briefly before the assailants run away with the bag toward a side alley. EVENT: Robbery."
-
-Example 3 — Fighting:
-"Two men face each other aggressively in a parking lot. In the initial frames, one pushes the other. The confrontation escalates as both begin throwing punches. Bystanders start moving away. EVENT: Fighting / Assault."
-
-Example 4 — Shoplifting:
-"A person in a store aisle looks around, then quickly places merchandise into their jacket pocket. They then walk briskly toward the exit without approaching the checkout counter. EVENT: Shoplifting / Stealing."
-
-Example 5 — Vandalism:
-"An individual approaches a parked car and uses a blunt object to smash the side window. Glass fragments scatter. The person then moves to the next vehicle. EVENT: Vandalism / Property Damage."
-
-Example 6 — Normal Activity:
-"Pedestrians walk along a sidewalk at a steady pace. Vehicles move through the intersection following traffic signals. No unusual or anomalous behavior is detected. EVENT: Normal Activity."
-
-Now analyze the following surveillance frames:"""
+# ── Legacy prompt aliases ──────────────────────────────────────────
+# Any file that does `from config import SYSTEM_PROMPT` will get the
+# default prompt loaded lazily from the prompts/ folder.
+def __getattr__(name):
+    if name in ("SYSTEM_PROMPT", "FEW_SHOT_EXAMPLES"):
+        from prompt_loader import get_default_stem, load_prompt
+        p = load_prompt(get_default_stem())
+        return p["system"] if name == "SYSTEM_PROMPT" else p["few_shot"]
+    raise AttributeError(f"module 'config' has no attribute '{name}'")

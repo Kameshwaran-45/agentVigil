@@ -41,9 +41,10 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from config import (
     TIER1_THRESHOLD, TIER2_THRESHOLD,
     ALERT_THRESHOLD, WATCH_THRESHOLD,
-    ALL_CRIME_KEYWORDS, EVENT_KEYWORDS,
     EVENT_CATEGORIES, SIMILAR_INCIDENT_TOP_K,
 )
+from keyword_store import KeywordStore
+from perception import normalize_category, extract_event_from_caption
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -56,6 +57,7 @@ class AgentState(TypedDict):
     Every node reads from and writes to this state.
     """
     # Input (set once at entry)
+    camera_id: str
     video_name: str
     chunk_index: int
     caption: str
@@ -107,7 +109,33 @@ class AdaptiveReasoningAgent:
     def __init__(self, database, embedding_engine):
         self.db = database
         self.embedder = embedding_engine
+        self.temporal_sensitive_events = {
+            "RoadAccidents",
+            "Robbery",
+            "Shoplifting",
+            "Stealing",
+            "Fighting",
+            "Assault",
+            "Arson",
+            "Burglary",
+        }
+        # Load keywords from DB once at startup; stays cached in memory.
+        # Call self.kw.reload() to refresh after a DB change mid-session.
+        self.kw = KeywordStore(database.pg_conn)
         self.graph = self._build_graph()
+
+    @staticmethod
+    def _normalize_event_label(event: str) -> str:
+        # Single source of truth for category normalization lives in perception.py
+        # to avoid drift between perception and agent routing.
+        return normalize_category(event or "")
+
+    def _events_match(self, current_event: str, past_event: str) -> bool:
+        c = self._normalize_event_label(current_event)
+        p = self._normalize_event_label(past_event)
+        # Same-event confirmation should be strict after normalization.
+        # This prevents accidental cross-category matches.
+        return c == p
 
     def _build_graph(self) -> StateGraph:
         """
@@ -178,36 +206,48 @@ class AdaptiveReasoningAgent:
         """
         caption_lower = state["caption"].lower()
 
-        keyword_hits = sum(1 for kw in ALL_CRIME_KEYWORDS if kw in caption_lower)
-
-        matched_events = []
-        for event_type, keywords in EVENT_KEYWORDS.items():
-            hits = sum(1 for kw in keywords if kw in caption_lower)
-            if hits > 0:
-                matched_events.append(event_type)
+        # ── DB-backed keyword scan (replaces hardcoded config dicts) ──
+        keyword_hits   = self.kw.count_hits(caption_lower)
+        weighted_score = self.kw.weighted_hits(caption_lower)
+        matched_events = self.kw.matched_categories(caption_lower)
+        best_event, _ = self.kw.best_category(caption_lower)
+        temporal_candidate = best_event in self.temporal_sensitive_events
+        has_high_priority = self.kw.has_high_priority_match(matched_events)
 
         # Determine complexity
         if keyword_hits == 0:
+            # No crime keywords at all → clearly normal, fast-path Tier 1
             complexity = 0.1
             route = "tier1"
-        elif keyword_hits <= 2 and not any(
-            e in matched_events for e in [
-                "Robbery / Armed Robbery",
-                "Arson / Fire",
-                "Fighting / Assault",
-            ]
-        ):
-            complexity = 0.4
-            route = "tier2"
+        elif keyword_hits <= 2 and not has_high_priority:
+            # Low keyword density and no high-priority category → Tier 1
+            # (Tier 1 will escalate to Tier 2 if its score exceeds TIER1_THRESHOLD)
+            complexity = 0.35
+            route = "tier1"
+        elif keyword_hits <= 5 and not has_high_priority:
+            # Moderate keyword density, no high-priority hit → start at Tier 1.
+            # Tier 1 will escalate to Tier 2 if score lands in vague 0.3-0.7 range.
+            complexity = 0.55
+            route = "tier1"
         else:
-            complexity = 0.7
-            route = "tier3"
+            # High keyword density — still start at Tier 1.
+            # If Tier 1 score is already conclusive (>= ALERT_THRESHOLD), it resolves
+            # directly without needing Tier 2.
+            # Direct Tier 3 only for temporal-sensitive, high-priority events.
+            if has_high_priority and temporal_candidate:
+                complexity = 0.72
+                route = "tier3"
+            else:
+                complexity = 0.65
+                route = "tier1"
 
         return {
             "complexity_score": round(complexity, 3),
             "tier_route": route,
             "keyword_hits": keyword_hits,
+            "weighted_keyword_score": round(weighted_score, 2),
             "matched_events": matched_events,
+            "complexity_event_hint": best_event,
         }
 
     # ═══════════════════════════════════════════════════════════════
@@ -220,15 +260,42 @@ class AdaptiveReasoningAgent:
 
     def _should_escalate_from_tier1(self, state: AgentState) -> str:
         """After Tier 1, decide if we need deeper analysis."""
-        if state["tier1_score"] >= TIER1_THRESHOLD:
+        score = state["tier1_score"]
+
+        # High confidence from Tier 1 alone → resolve directly, no Tier 2 needed.
+        if score >= ALERT_THRESHOLD:
+            return "synthesize"
+
+        # Vague range → check history via Tier 2.
+        if TIER1_THRESHOLD <= score < ALERT_THRESHOLD:
             return "escalate"
+
         return "synthesize"
 
     def _should_escalate_from_tier2(self, state: AgentState) -> str:
         """After Tier 2, decide if we need temporal reasoning."""
-        if state["tier2_score"] >= TIER2_THRESHOLD:
+        event_type = state.get("tier1_event", "")
+        temporal_candidate = event_type in self.temporal_sensitive_events
+
+        if not temporal_candidate:
+            return "synthesize"
+
+        # Only escalate when similar past chunks were confirmed anomalous —
+        # alert_status is the authoritative post-agent verdict from Postgres.
+        similar = state.get("tier2_similar") or []
+        past_anomalies = [
+            s for s in similar
+            if s.get("alert_status") in ("ALERT", "WATCH")
+            or s.get("anomaly_score", 0.0) > 0.5
+        ]
+        strong_similar = [
+            s for s in past_anomalies
+            if s.get("similarity", 0.0) >= 0.55
+        ]
+
+        if state["tier2_score"] >= TIER2_THRESHOLD and strong_similar:
             return "escalate"
-        if state.get("tier2_similar") and len(state["tier2_similar"]) >= 2:
+        if len(strong_similar) >= 2:
             return "escalate"
         return "synthesize"
 
@@ -237,25 +304,77 @@ class AdaptiveReasoningAgent:
     # ═══════════════════════════════════════════════════════════════
 
     def _node_tier1(self, state: AgentState) -> Dict:
-        """Fast keyword-based analysis. No DB calls."""
+        """Fast local analysis: keyword evidence + lightweight semantic check."""
         caption_lower = state["caption"].lower()
+        caption_event = extract_event_from_caption(state["caption"])
 
-        best_event = "Normal Activity"
-        best_hits = 0
-        for event_type, keywords in EVENT_KEYWORDS.items():
-            hits = sum(1 for kw in keywords if kw in caption_lower)
-            if hits > best_hits:
-                best_hits = hits
-                best_event = event_type
+        # ── DB-backed weighted category scoring ────────────────────
+        best_event, best_score = self.kw.best_category(caption_lower)
+        best_event = normalize_category(best_event)
+        caption_event = normalize_category(caption_event)
+        selected_event = (
+            caption_event
+            if caption_event != "Normal_Videos_event"
+            else best_event
+        )
+        keyword_hits = state["keyword_hits"]
 
-        score = min(state["keyword_hits"] * 0.15, 0.5)
+        # Weighted score gives a richer signal than raw hit count.
+        # The score is calibrated so Tier 1 can confidently surface clear
+        # keyword evidence, while still leaving room for Tier 2/3 refinement.
+        weighted = state.get("weighted_keyword_score", keyword_hits * 0.15)
+        hit_component = min(keyword_hits / 8.0, 1.0) * 0.45
+        weight_component = min(weighted / 3.0, 1.0) * 0.35
+        category_component = min(best_score / 4.0, 1.0) * 0.20
+        keyword_score = min(hit_component + weight_component + category_component, 0.82)
+
+        # Lightweight semantic context in Tier 1 to form a combined score
+        # without changing the tier architecture.
+        semantic_hits = self.db.search_similar(
+            state["embedding"],
+            top_k=3,
+            exclude_video=state["video_name"],
+            camera_id=state.get("camera_id"),
+        )
+
+        same_event_hits = [
+            s for s in semantic_hits
+            if self._events_match(selected_event, s.get("event_type", ""))
+        ]
+
+        semantic_component = 0.0
+        normal_penalty = 0.0
+        if same_event_hits:
+            avg_same_sim = (
+                sum(s.get("similarity", 0.0) for s in same_event_hits)
+                / len(same_event_hits)
+            )
+            semantic_component = min(0.16, max(avg_same_sim - 0.35, 0.0) * 0.45)
+        else:
+            strong_normal = [
+                s for s in semantic_hits
+                if self._normalize_event_label(s.get("event_type", "")) == "normal_videos_event"
+                and s.get("similarity", 0.0) >= 0.6
+            ]
+            if strong_normal:
+                normal_penalty = 0.08
+
+        score = min(max(keyword_score + semantic_component - normal_penalty, 0.0), 0.9)
+
+        if keyword_hits == 0 and not same_event_hits:
+            score = min(score, 0.25)
 
         return {
             "tier1_score": round(score, 3),
-            "tier1_event": best_event if state["keyword_hits"] > 0 else "Normal Activity",
+            "tier1_event": selected_event if keyword_hits > 0 else "Normal_Videos_event",
+            "tier1_semantic_hits": semantic_hits,
             "tier1_evidence": (
-                f"Tier 1 Keyword Analysis: {state['keyword_hits']} crime keywords detected. "
-                f"Best match: {best_event} ({best_hits} hits)."
+                f"Tier 1 Keyword Analysis: {keyword_hits} keywords matched "
+                f"(weighted score: {weighted:.1f}). "
+                f"Best keyword category: {best_event} (score: {best_score}). "
+                f"Caption EVENT tag: {caption_event}. "
+                f"Tier 1 Semantic Check: {len(same_event_hits)} same-event semantic hits. "
+                f"Combined Tier1 score: {score:.3f}"
             ),
             "tier_used": 1,
         }
@@ -275,30 +394,69 @@ class AdaptiveReasoningAgent:
             tier1 = self._node_tier1(state)
             state.update(tier1)
 
-        # TOOL: Search Milvus for similar incidents
+        # TOOL: Search Milvus — same-camera results get a similarity boost
         similar = self.db.search_similar(
             state["embedding"],
             top_k=SIMILAR_INCIDENT_TOP_K,
             exclude_video=state["video_name"],
+            camera_id=state.get("camera_id"),
         )
 
-        base_score = state.get("tier1_score", 0.3)
+        base_score = state.get("tier1_score") or 0.0
+        event_type = state.get("tier1_event", "")
+        is_vague = 0.3 <= base_score < 0.4
 
         if similar:
-            past_anomalies = [s for s in similar if s.get("anomaly_score", 0) > 0.5]
-            if past_anomalies:
-                base_score = min(base_score + 0.25, 0.9)
-            elif similar[0]["similarity"] > 0.7:
-                base_score = min(base_score + 0.1, 0.7)
+            # A past chunk is "confirmed anomalous" if the agent marked it ALERT/WATCH
+            # (alert_status) OR if its final anomaly_score exceeded 0.5.
+            # alert_status is the authoritative verdict — it is written by
+            # update_chunk_analysis() after the agent finishes, so it correctly
+            # reflects the final decision rather than the initial 0.0 placeholder.
+            past_anomalies = [
+                s for s in similar
+                if s.get("alert_status") in ("ALERT", "WATCH")
+                or s.get("anomaly_score", 0.0) > 0.5
+            ]
+            strong_anomalies = [
+                s for s in past_anomalies
+                if s.get("similarity", 0.0) >= 0.5
+                and self._events_match(event_type, s.get("event_type", ""))
+            ]
+            strong_normal = [
+                s for s in similar
+                if s.get("similarity", 0.0) >= 0.65
+                and s.get("alert_status") == "NORMAL"
+                and s.get("anomaly_score", 0.0) < 0.4
+            ]
+
+            if is_vague:
+                # Tier 2 confirms ambiguous 0.3-0.4 cases using history.
+                if strong_anomalies:
+                    avg_sim = sum(s.get("similarity", 0.0) for s in strong_anomalies) / len(strong_anomalies)
+                    confirm_boost = min(0.14, 0.04 + (avg_sim - 0.5) * 0.2)
+                    base_score = min(base_score + max(confirm_boost, 0.03), 0.9)
+                elif strong_normal:
+                    base_score = max(base_score - 0.1, 0.0)
+            elif event_type in self.temporal_sensitive_events and strong_anomalies:
+                # Keep Tier 2 as a confirmation stage before temporal escalation.
+                base_score = min(base_score + 0.06, 0.9)
 
         evidence_parts = [state.get("tier1_evidence", "")]
         if similar:
+            strong_anom_count = sum(
+                1 for s in similar
+                if (s.get("alert_status") in ("ALERT", "WATCH") or s.get("anomaly_score", 0.0) > 0.5)
+                and s.get("similarity", 0.0) >= 0.5
+                and self._events_match(event_type, s.get("event_type", ""))
+            )
             evidence_parts.append(
-                f"Tier 2 Semantic Search: Found {len(similar)} similar past incidents."
+                f"Tier 2 Semantic Search: Found {len(similar)} similar past incidents "
+                f"({strong_anom_count} same-event anomalous confirmations)."
             )
             for s in similar[:3]:
+                cam_tag = "📷 same-cam" if s.get("same_camera") else f"cam {s.get('camera_id','?')}"
                 evidence_parts.append(
-                    f"  → {s['video_name']} [{s['event_type']}] "
+                    f"  → [{cam_tag}] {s['video_name']} [{s['event_type']}] "
                     f"(similarity: {s['similarity']:.3f}): "
                     f"\"{s.get('caption', '')[:80]}...\""
                 )
@@ -344,17 +502,21 @@ class AdaptiveReasoningAgent:
                     "event": c["event_type"],
                 })
 
-        event_chunks = [t for t in temporal if t["event"] != "Normal Activity"]
+        # "Normal_Videos_event" is the canonical value stored in Postgres.
+        # "Normal Activity" was a legacy mismatch — every chunk appeared anomalous.
+        NORMAL_EVENT = "Normal_Videos_event"
+
+        event_chunks = [t for t in temporal if t["event"] != NORMAL_EVENT]
         normal_before = [
             t for t in temporal
-            if t["chunk"] < chunk_index and t["event"] == "Normal Activity"
+            if t["chunk"] < chunk_index and t["event"] == NORMAL_EVENT
         ]
 
         base_score = state.get("tier2_score", 0.5)
         if normal_before and event_chunks:
-            base_score = min(base_score + 0.1, 0.95)
+            base_score = min(base_score + 0.08, 0.95)
         if len(event_chunks) >= 3:
-            base_score = min(base_score + 0.15, 0.98)
+            base_score = min(base_score + 0.12, 0.98)
 
         # Build temporal narrative
         narrative_parts = []
@@ -426,6 +588,17 @@ class AdaptiveReasoningAgent:
     def _node_alert_decision(self, state: AgentState) -> Dict:
         """Final NORMAL/WATCH/ALERT decision + recommendation."""
         score = state["final_score"]
+        event_type = state.get("final_event_type", "")
+
+        # If the model explicitly tagged this chunk as normal, override regardless
+        # of score — keyword spillover from captions describing normal activity
+        # near an event can inflate scores for genuinely normal chunks.
+        if normalize_category(event_type) == "Normal_Videos_event":
+            return {
+                "final_severity": "LOW",
+                "final_alert_status": "NORMAL",
+                "final_recommendation": "No action required. Continue monitoring.",
+            }
 
         if score >= ALERT_THRESHOLD:
             severity = "HIGH"
@@ -438,7 +611,7 @@ class AdaptiveReasoningAgent:
             alert_status = "NORMAL"
 
         recommendation = self._generate_recommendation(
-            state["final_event_type"], severity, state.get("similar_count", 0)
+            event_type, severity, state.get("similar_count", 0)
         )
 
         return {
@@ -458,6 +631,7 @@ class AdaptiveReasoningAgent:
         caption: str,
         embedding: List[float],
         pg_id: int,
+        camera_id: str = "CAM-01",
     ) -> Dict[str, Any]:
         """
         Main entry point — runs the LangGraph state machine.
@@ -467,6 +641,7 @@ class AdaptiveReasoningAgent:
 
         # Build initial state
         initial_state = {
+            "camera_id": camera_id,
             "video_name": video_name,
             "chunk_index": chunk_index,
             "caption": caption,
@@ -534,20 +709,36 @@ class AdaptiveReasoningAgent:
         return output
 
     def analyze_full_video(
-        self, video_name: str, duration_sec: float,
+        self, video_name: str, duration_sec: float, camera_id: str = "CAM-01",
     ) -> Dict[str, Any]:
         """Video-level analysis after all chunks processed."""
-        chunks = self.db.get_video_chunks(video_name)
+        chunks = self.db.get_video_chunks(video_name, camera_id=camera_id)
         if not chunks:
             return {"error": "No chunks found"}
+
+        def _is_normal_event(event_name: str) -> bool:
+            if not event_name:
+                return True
+            token = event_name.strip().lower().replace(" ", "_")
+            return token in {
+                "normal_activity",
+                "normal_videos_event",
+                "normal",
+            }
 
         total = len(chunks)
         anomalous = [
             c for c in chunks if c["alert_status"] in ("ALERT", "WATCH")
         ]
 
+        eventful_chunks = [
+            c for c in chunks if not _is_normal_event(c.get("event_type", ""))
+        ]
+
+        primary_candidates = anomalous if anomalous else eventful_chunks
+
         event_counts = {}
-        for c in anomalous:
+        for c in primary_candidates:
             et = c["event_type"]
             event_counts[et] = event_counts.get(et, 0) + 1
         primary_event = (
@@ -558,10 +749,13 @@ class AdaptiveReasoningAgent:
         scores = [c["anomaly_score"] for c in chunks]
         overall_score = max(scores) if scores else 0.0
 
-        if overall_score >= ALERT_THRESHOLD:
+        has_alert = any(c["alert_status"] == "ALERT" for c in chunks)
+        has_watch = any(c["alert_status"] == "WATCH" for c in chunks)
+
+        if has_alert or overall_score >= ALERT_THRESHOLD:
             overall_severity = "HIGH"
             overall_alert = "ALERT"
-        elif overall_score >= WATCH_THRESHOLD:
+        elif has_watch or overall_score >= WATCH_THRESHOLD or (eventful_chunks and overall_score >= 0.35):
             overall_severity = "MEDIUM"
             overall_alert = "WATCH"
         else:
@@ -596,6 +790,7 @@ class AdaptiveReasoningAgent:
             overall_severity=overall_severity,
             overall_alert=overall_alert,
             narrative=narrative,
+            camera_id=camera_id,
         )
 
         return {

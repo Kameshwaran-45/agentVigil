@@ -5,18 +5,35 @@ Full pipeline: Chunk → CLIP Filter → VLM Caption → Store → Agent
 
 Uses EXACT same chunking as benchmark_vlm.py to ensure production
 results match benchmark quality.
+
+CHANGES FROM ORIGINAL:
+  - Model and Prompt are now selectable via sidebar dropdowns.
+  - init_system() split: core services cached once; perception engine
+    cached per model key so switching models loads a new instance
+    without restarting the server.
+  - caption_chunk() now receives prompt_type from session state.
 """
 
 import os
+import re
 import time
+import html
 import tempfile
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
 from config import (
-    PRIMARY_VLM_NAME, CLIP_ENABLED,
-    CHUNK_OVERLAP_SEC, SAMPLING_STRATEGY,
+    CLIP_ENABLED,
+    CHUNK_CONTEXT_ENABLED,
+    CHUNK_CONTEXT_MAX_CHARS,
+    CHUNK_OVERLAP_SEC,
+    FRAMES_PER_SECOND,
+    SAMPLING_STRATEGY,
+    VLM_REGISTRY,
+    DEFAULT_VLM,
 )
+from prompt_loader import get_prompt_registry, get_default_stem
 from video_processor import extract_chunks_and_frames, get_video_info
 from perception import PerceptionEngine
 from embeddings import EmbeddingEngine
@@ -34,31 +51,202 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .stMetric > div { padding: 8px; }
+    :root {
+        --brand-cyan: #22d3ee;
+        --brand-blue: #2563eb;
+        --brand-ink: #04132c;
+        --card-bg: rgba(8, 26, 54, 0.82);
+        --card-border: rgba(110, 178, 255, 0.28);
+        --muted: #98b4d8;
+    }
+
+    .stApp {
+        background:
+            radial-gradient(1200px 600px at 12% -10%, rgba(34, 211, 238, 0.20), transparent 60%),
+            radial-gradient(1000px 500px at 88% 0%, rgba(37, 99, 235, 0.18), transparent 62%),
+            linear-gradient(135deg, #020913 0%, #031021 50%, #041731 100%);
+    }
+
+    .block-container {
+        max-width: 1300px;
+        padding-top: 1.2rem;
+    }
+
+    .stMetric {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 14px;
+        padding: 10px 12px;
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+    }
+
+    .stMetric label {
+        color: var(--muted) !important;
+        font-weight: 600 !important;
+    }
+
+    .av-hero {
+        margin: 0 0 0.9rem 0;
+        padding: 1rem 1.1rem;
+        border-radius: 16px;
+        border: 1px solid var(--card-border);
+        background: linear-gradient(120deg, rgba(34, 211, 238, 0.10), rgba(37, 99, 235, 0.08));
+        box-shadow: 0 10px 24px rgba(2, 6, 23, 0.35);
+    }
+
+    .av-hero h2 {
+        margin: 0;
+        font-size: 1.35rem;
+        color: #e6f1ff;
+        letter-spacing: 0.2px;
+    }
+
+    .av-hero p {
+        margin: 0.35rem 0 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+    }
+
+    .av-status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 0.65rem;
+        margin: 0.65rem 0 0.2rem;
+    }
+
+    .av-status-card {
+        border-radius: 12px;
+        padding: 0.75rem 0.8rem;
+        border: 1px solid var(--card-border);
+        background: var(--card-bg);
+    }
+
+    .av-status-label {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin-bottom: 0.3rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        font-weight: 700;
+    }
+
+    .av-status-value {
+        color: #f4fbff;
+        font-size: 1.12rem;
+        line-height: 1.35;
+        font-weight: 700;
+        word-break: break-word;
+    }
+
+    .av-status-alert {
+        border-color: rgba(255, 125, 125, 0.45);
+        background: linear-gradient(120deg, rgba(183, 28, 28, 0.34), rgba(90, 16, 16, 0.24));
+    }
+
+    .av-status-watch {
+        border-color: rgba(255, 196, 84, 0.45);
+        background: linear-gradient(120deg, rgba(120, 83, 12, 0.36), rgba(69, 47, 8, 0.25));
+    }
+
+    div[data-testid="stExpander"] details {
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        background: rgba(7, 20, 43, 0.72);
+    }
+
     div[data-testid="stExpander"] details summary p { font-size: 14px; }
+
+    .av-page-card {
+    margin-top: 3rem;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 1rem 0.65rem;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.av-page-card h1 {
+    margin: 0 0 0.1rem 0;
+    font-size: 1.7rem;
+    color: #e6f1ff;
+    font-weight: 700;
+}
+
+.av-page-card .av-subtitle {
+    color: var(--muted);
+    font-size: 0.76rem;
+    margin-bottom: 0.65rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
 
 # ═════════════════════════════════════════════════════════════════════
-# SYSTEM INIT (cached — loads once)
+# SYSTEM INIT (cached — loads once per unique key)
 # ═════════════════════════════════════════════════════════════════════
 
 @st.cache_resource
-def init_system():
+def init_core_system():
+    """Loads everything that does NOT depend on model choice."""
     embedder = EmbeddingEngine()
     db = DatabaseManager()
     db.connect()
-    perception = PerceptionEngine()
-    perception.load()
-    clip_filter = CLIPFilter()
-    clip_filter.load()
     agent = AdaptiveReasoningAgent(db, embedder)
-    return perception, embedder, db, agent, clip_filter
+    return embedder, db, agent
+
+
+@st.cache_resource
+def init_clip_filter(_pg_conn):
+    """
+    Load CLIP filter with DB connection so prompts are fetched from
+    the clip_prompts table instead of config.py hardcoded lists.
+    """
+    clip_filter = CLIPFilter()
+    clip_filter.load(pg_conn=_pg_conn)
+    return clip_filter
+
+
+@st.cache_resource
+def get_perception_engine(model_key: str) -> PerceptionEngine:
+    """
+    Loads and caches the VLM for the given model_key.
+    Switching model_key creates a new cached instance without
+    unloading the previous one (decoupled by design).
+    """
+    engine = PerceptionEngine(model_key)
+    engine.load()
+    return engine
 
 
 def severity_icon(sev):
     return {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(sev, "⚪")
+
+
+def severity_badge_class(sev):
+    if sev == "HIGH":
+        return "av-status-alert"
+    if sev == "MEDIUM":
+        return "av-status-watch"
+    return ""
+
+
+def extract_summary_for_context(caption: str) -> str:
+    """
+    Pull Summary text to carry forward to next chunk.
+    Only Summary should be propagated as temporal context.
+    """
+    if not caption:
+        return ""
+    m = re.search(
+        r"Summary:\s*(.+?)(?:\n\s*EVENT:|$)",
+        caption,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if m:
+        return " ".join(m.group(1).strip().split())
+    # If Summary is missing, do not pass arbitrary text as rolling context.
+    return ""
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -66,7 +254,7 @@ def severity_icon(sev):
 # ═════════════════════════════════════════════════════════════════════
 
 def render_sidebar():
-    st.sidebar.markdown("# 🛡️ AgentVigil")
+    st.sidebar.markdown("# AgentVigil")
     st.sidebar.caption("AI-Powered Surveillance Intelligence")
     st.sidebar.divider()
 
@@ -82,34 +270,39 @@ def render_sidebar():
     )
 
     st.sidebar.divider()
-    st.sidebar.markdown("**System Config**")
 
-    overlap_mode = "Sliding Window" if CHUNK_OVERLAP_SEC > 0 else "Hard Cuts (Benchmark)"
-    st.sidebar.code(
-        f"VLM: {PRIMARY_VLM_NAME}\n"
-        f"CLIP Filter: {'ON' if CLIP_ENABLED else 'OFF'}\n"
-        f"Chunking: {overlap_mode}\n"
-        f"Overlap: {CHUNK_OVERLAP_SEC}s\n"
-        f"Sampling: {SAMPLING_STRATEGY}\n"
-        f"Mode: IMAGE | Quant: 4-bit",
-        language=None,
+    # ── Model selection ────────────────────────────────────────────
+    st.sidebar.markdown("**🤖 Model Selection**")
+    model_options = list(VLM_REGISTRY.keys())
+    default_model_idx = model_options.index(DEFAULT_VLM) if DEFAULT_VLM in model_options else 0
+    selected_model = st.sidebar.selectbox(
+        "VLM Model",
+        model_options,
+        index=default_model_idx,
+        format_func=lambda k: VLM_REGISTRY[k]["display_name"],
+        help="Select the vision-language model for video captioning.",
     )
+    model_cfg = VLM_REGISTRY[selected_model]
+    st.sidebar.caption(f"_{model_cfg['description']}_")
 
-    st.sidebar.markdown("**Pipeline**")
-    st.sidebar.markdown("""
-    ```
-    Video
-     → Adaptive Chunking
-     → CLIP Pre-Filter
-     → LLaVA-OV Caption
-     → PostgreSQL + Milvus
-     → Adaptive Router
-       ├── T1: Keyword
-       ├── T2: Semantic
-       └── T3: Temporal
-     → Alert Generation
-    ```
-    """)
+    st.sidebar.divider()
+
+    # ── Prompt selection ─────────────────────────────────────────────
+    st.sidebar.markdown("**📝 Prompt**")
+    prompt_registry = get_prompt_registry()
+    default_stem = get_default_stem()
+    if prompt_registry:
+        stem_list = list(prompt_registry.keys())
+        default_idx = stem_list.index(default_stem) if default_stem in stem_list else 0
+        selected_stem = st.sidebar.selectbox(
+            "Prompt file",
+            stem_list,
+            index=default_idx,
+            format_func=lambda s: prompt_registry[s]["name"],
+            help="Select a prompt template from the prompts/ folder.",
+        )
+    else:
+        selected_stem = default_stem
 
     return page
 
@@ -118,19 +311,68 @@ def render_sidebar():
 # PAGE: PROCESS VIDEO
 # ═════════════════════════════════════════════════════════════════════
 
-def page_process(perception, embedder, db, agent, clip_filter):
-    st.title("📹 Process Surveillance Video")
+def page_process(embedder, db, agent, clip_filter):
+    # Read current selections from session state
+    model_key = st.session_state.get("selected_model", DEFAULT_VLM)
+    prompt_stem = st.session_state.get("prompt_stem", get_default_stem())
+    model_cfg = VLM_REGISTRY[model_key]
+
+    safe_model = html.escape(model_cfg["display_name"])
     st.markdown(
-        "**Pipeline:** Adaptive Chunk → CLIP Filter → "
-        "VLM Caption → Store → Agent Analyze"
+        f'<div class="av-page-card">'
+        f'<h1>Process Surveillance Video</h1>'
+        f'<div class="av-subtitle">Model: <strong>{safe_model}</strong> &nbsp;·&nbsp; '
+        f'Pipeline: Adaptive Chunk → CLIP Filter → VLM Caption → Agent</div>',
+        unsafe_allow_html=True,
     )
+
+    cam_label_col, reset_label_col = st.columns([3, 1])
+    with cam_label_col:
+        st.markdown("**Camera ID**")
+    with reset_label_col:
+        st.markdown("**Actions**")
+
+    cam_col, reset_col = st.columns([3, 1])
+    with cam_col:
+        existing_cameras = db.get_cameras()
+        camera_options = sorted(set(["CAM-01", "CAM-02", "CAM-03", "CAM-04"] + existing_cameras))
+        camera_id = st.selectbox(
+            "Camera ID",
+            options=camera_options + ["＋ New camera ID..."],
+            index=0,
+            label_visibility="collapsed",
+            help="Tag this video to a camera. Tier 2 semantic search boosts matches from the same camera.",
+        )
+        if camera_id == "＋ New camera ID...":
+            camera_id = st.text_input("Enter new camera ID", placeholder="e.g. CAM-05 / Entrance-North")
+            if not camera_id:
+                camera_id = "CAM-01"
+
+    with reset_col:
+        with st.popover("🗑️ Reset DB", width="stretch"):
+            st.warning("This will delete stored captions, scores and vectors. Keywords and CLIP prompts are kept.")
+            scope = st.radio("Scope", ["This camera only", "All cameras"], index=0)
+            if st.button("Confirm reset", type="primary", width="stretch"):
+                cam_filter = camera_id if scope == "This camera only" else None
+                result = db.reset_data(camera_id=cam_filter)
+                st.success(
+                    f"Reset complete — {result['pg_chunks_deleted']} chunks, "
+                    f"{result['pg_videos_deleted']} videos deleted ({result['scope']})."
+                )
+                st.cache_resource.clear()
+                st.rerun()
+
+    st.session_state["camera_id"] = camera_id
 
     uploaded = st.file_uploader(
         "Upload video", type=["mp4", "avi", "mov", "mkv"]
     )
     if not uploaded:
         st.info("Upload a surveillance video to begin.")
+        st.markdown('</div>', unsafe_allow_html=True)
         return
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         tmp.write(uploaded.read())
@@ -139,42 +381,60 @@ def page_process(perception, embedder, db, agent, clip_filter):
     video_name = os.path.splitext(uploaded.name)[0]
     info = get_video_info(tmp_path)
 
-    # Video info metrics
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Duration", f"{info['duration_sec']}s")
-    c2.metric("FPS", f"{info['fps']}")
-    c3.metric("Resolution", f"{info['width']}×{info['height']}")
-    c4.metric("Chunk Size", f"{info['chunk_duration']}s")
-    c5.metric("Stride", f"{info['stride_sec']}s")
-    c6.metric("Est. Chunks", f"{info['total_chunks']}")
-
-    st.video(tmp_path)
+    # ── Compact video + info row ────────────────────────────────────
+    with st.expander("🎬 Preview & Video Info", expanded=True):
+        vcol, icol = st.columns([1, 2])
+        with vcol:
+            st.video(tmp_path)
+        with icol:
+            st.caption("**Video metadata**")
+            r1c1, r1c2, r1c3 = st.columns(3)
+            r1c1.metric("Duration", f"{info['duration_sec']}s")
+            r1c2.metric("FPS", f"{info['fps']}")
+            r1c3.metric("Resolution", f"{info['width']}×{info['height']}")
+            r2c1, r2c2, r2c3 = st.columns(3)
+            r2c1.metric("Chunk Size", f"{info['chunk_duration']}s")
+            r2c2.metric("Stride", f"{info['stride_sec']}s")
+            r2c3.metric("Est. Chunks", f"{info['total_chunks']}")
 
     if not st.button(
         "🚀 Run AgentVigil Pipeline",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     ):
         return
+
+    # Load (or retrieve from cache) the selected perception engine
+    with st.spinner(f"Loading {model_cfg['display_name']}..."):
+        perception = get_perception_engine(model_key)
 
     run_pipeline(
         tmp_path, video_name, info,
         perception, embedder, db, agent, clip_filter,
+        prompt_stem=prompt_stem,
+        camera_id=camera_id,
     )
 
 
 def run_pipeline(
     video_path, video_name, info,
     perception, embedder, db, agent, clip_filter,
+    prompt_stem: str = "standard",
+    camera_id: str = "CAM-01",
 ):
     pipeline_start = time.time()
 
-    # ── STAGE 0: Adaptive Chunking (benchmark-identical) ────────────
+    # ── STAGE 0: Adaptive Chunking ──────────────────────────────────
     with st.status(
         "⏳ Stage 0: Adaptive Chunking & Frame Extraction...",
         expanded=False,
     ) as s0:
-        output_dir = tempfile.mkdtemp()
+        output_dir = os.path.join(
+            os.getenv("AGENTVIGIL_TEMP_DIR", tempfile.gettempdir()),
+            "agentvigil",
+            "temp_workspace",
+        )
+        os.makedirs(output_dir, exist_ok=True)
         chunks = extract_chunks_and_frames(video_path, output_dir)
         total_frames = sum(c["num_frames"] for c in chunks.values())
         first_chunk = next(iter(chunks.values()))
@@ -201,11 +461,15 @@ def run_pipeline(
             clip_filter.filter_chunks(chunks)
         )
         if clip_stats["enabled"]:
+            # Cache prompt stats for sidebar display
+            st.session_state["_clip_prompt_stats"] = clip_stats.get("prompt_stats", {})
             s_clip.update(
                 label=(
                     f"✅ CLIP Filter: {clip_stats['passed']}/"
                     f"{clip_stats['total']} passed "
-                    f"({clip_stats['compute_saved_pct']}% filtered)"
+                    f"({clip_stats['compute_saved_pct']}% filtered) | "
+                    f"{clip_stats.get('prompt_stats',{}).get('anomaly_count','?')}a/"
+                    f"{clip_stats.get('prompt_stats',{}).get('normal_count','?')}n prompts"
                 ),
                 state="complete",
             )
@@ -215,11 +479,9 @@ def run_pipeline(
                 state="complete",
             )
 
-    # Show CLIP score distribution
     if clip_stats["enabled"] and clip_stats.get("scores"):
         st.markdown("#### CLIP Anomaly Scores")
         scores = clip_stats["scores"]
-
         score_df = pd.DataFrame([
             {
                 "Chunk": f"C{k}",
@@ -237,9 +499,7 @@ def run_pipeline(
 
     # ── Process SKIPPED chunks (auto Normal, no VLM) ────────────────
     for cidx, cinfo in sorted(skipped_chunks.items()):
-        embedding = embedder.embed_text(
-            "Normal activity. No anomaly detected."
-        )
+        embedding = embedder.embed_text("Normal activity. No anomaly detected.")
         db.store_chunk(
             video_name=video_name,
             chunk_index=cidx,
@@ -253,6 +513,7 @@ def run_pipeline(
             event_type="Normal Activity",
             embedding=embedding,
             anomaly_score=0.0,
+            camera_id=camera_id,
             metadata={
                 "clip_score": cinfo.get("clip_score", 0),
                 "clip_filtered": True,
@@ -276,6 +537,7 @@ def run_pipeline(
     tier_counts = {0: len(skipped_chunks), 1: 0, 2: 0, 3: 0}
     alert_count = 0
     chunk_results = []
+    rolling_context = ""
 
     for i, (cidx, cinfo) in enumerate(sorted(passed_chunks.items())):
         progress.progress(
@@ -287,10 +549,18 @@ def run_pipeline(
             ),
         )
 
-        # Stage 1: VLM Caption
-        caption, latency = perception.caption_chunk(cinfo["frame_paths"])
+        # ── Stage 1: VLM Caption  ← prompt_type flows in here ───────
+        caption, latency = perception.caption_chunk(
+            cinfo["frame_paths"],
+            prompt_type=prompt_stem,
+            prev_context=rolling_context if CHUNK_CONTEXT_ENABLED else "",
+        )
         event_type = perception.extract_event_type(caption)
         embedding = embedder.embed_text(caption)
+
+        if CHUNK_CONTEXT_ENABLED:
+            next_ctx = extract_summary_for_context(caption)
+            rolling_context = next_ctx[:CHUNK_CONTEXT_MAX_CHARS]
 
         # Store in both DBs
         pg_id = db.store_chunk(
@@ -302,10 +572,13 @@ def run_pipeline(
             caption=caption,
             event_type=event_type,
             embedding=embedding,
+            camera_id=camera_id,
             metadata={
                 "clip_score": cinfo.get("clip_score", 0),
                 "clip_filtered": False,
                 "latency": latency,
+                "model": perception.model_key,
+                "prompt_stem": prompt_stem,
             },
         )
 
@@ -316,6 +589,7 @@ def run_pipeline(
             caption=caption,
             embedding=embedding,
             pg_id=pg_id,
+            camera_id=camera_id,
         )
 
         tier_counts[analysis["tier_used"]] = (
@@ -333,32 +607,47 @@ def run_pipeline(
             **analysis,
         })
 
-        # Real-time display
         sev = severity_icon(analysis["severity"])
         with results_container.expander(
             f"{sev} Chunk {cidx} | "
             f"{cinfo['start_sec']:.0f}-{cinfo['end_sec']:.0f}s | "
             f"{event_type} | Tier {analysis['tier_used']} | "
             f"Score: {analysis['anomaly_score']} | {latency:.1f}s",
-            expanded=(analysis["alert_status"] == "ALERT"),
+            expanded=False,
         ):
-            # Show frames (same layout as benchmark output)
-            n_show = min(len(cinfo["frame_paths"]), 4)
-            frame_cols = st.columns(n_show)
-            for j in range(n_show):
-                frame_cols[j].image(
-                    cinfo["frame_paths"][j],
-                    caption=f"Frame {j}",
-                    use_container_width=True,
-                )
+            # ── Top row: metrics + frame viewer button ───────────────
+            mc1, mc2, mc3, mc4, btn_col = st.columns([1, 1, 1, 1, 1.2])
+            mc1.metric("Anomaly Score", f"{analysis['anomaly_score']}")
+            mc2.metric("Tier Used", f"{analysis['tier_used']}")
+            mc3.metric("Similar Past", f"{analysis['similar_count']}")
+            mc4.metric("CLIP Score", f"{cinfo.get('clip_score', 'N/A')}")
 
+            frame_paths = cinfo.get("frame_paths", [])
+            with btn_col:
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+                if frame_paths:
+                    with st.popover(
+                        f"🖼️ View Frames ({len(frame_paths)})",
+                        use_container_width=True,
+                    ):
+                        st.caption(
+                            f"**Chunk {cidx}** · "
+                            f"{cinfo['start_sec']:.0f}s – {cinfo['end_sec']:.0f}s · "
+                            f"{len(frame_paths)} frames extracted"
+                        )
+                        gallery_cols = 5
+                        for start in range(0, len(frame_paths), gallery_cols):
+                            row_paths = frame_paths[start : start + gallery_cols]
+                            row_cols = st.columns(len(row_paths))
+                            for k, fp in enumerate(row_paths):
+                                row_cols[k].image(
+                                    fp,
+                                    caption=f"f{start + k}",
+                                    use_container_width=True,
+                                )
+
+            # ── Caption ─────────────────────────────────────────────
             st.markdown(f"**Caption:** {caption}")
-
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Anomaly Score", f"{analysis['anomaly_score']}")
-            m2.metric("Tier Used", f"{analysis['tier_used']}")
-            m3.metric("Similar Past", f"{analysis['similar_count']}")
-            m4.metric("CLIP Score", f"{cinfo.get('clip_score', 'N/A')}")
 
             if analysis.get("evidence"):
                 st.markdown("**Evidence:**")
@@ -374,7 +663,7 @@ def run_pipeline(
         "🤖 Stage 3: Video-level analysis...", expanded=False
     ) as s3:
         video_analysis = agent.analyze_full_video(
-            video_name, info["duration_sec"]
+            video_name, info["duration_sec"], camera_id=camera_id
         )
         s3.update(
             label="✅ Stage 3: Analysis complete", state="complete"
@@ -384,29 +673,46 @@ def run_pipeline(
 
     # ── RESULTS DASHBOARD ───────────────────────────────────────────
     st.markdown("---")
-    st.markdown("## 📊 Analysis Results")
+    st.markdown("## Analysis Results")
 
-    sev_i = severity_icon(video_analysis.get("overall_severity", "LOW"))
-    r1, r2, r3, r4, r5, r6 = st.columns(6)
-    r1.metric("Event", video_analysis.get("primary_event", "Unknown"))
-    r2.metric("Score", f"{video_analysis.get('overall_score', 0):.2f}")
-    r3.metric(
-        "Severity",
-        f"{sev_i} {video_analysis.get('overall_severity', 'LOW')}",
-    )
-    r4.metric(
-        "Alert",
-        "🚨 YES" if video_analysis.get("overall_alert") == "ALERT"
-        else "✅ NO",
-    )
-    r5.metric(
-        "Anomalous",
-        f"{video_analysis.get('anomalous_chunks', 0)}/"
-        f"{video_analysis.get('total_chunks', 0)}",
-    )
-    r6.metric("Pipeline Time", f"{pipeline_time:.1f}s")
+    overall_severity = video_analysis.get("overall_severity", "LOW")
+    overall_alert = video_analysis.get("overall_alert", "NORMAL")
+    sev_i = severity_icon(overall_severity)
+    alert_text = "YES" if overall_alert == "ALERT" else "NO"
 
-    # Tier usage breakdown
+    safe_primary_event = html.escape(str(video_analysis.get("primary_event", "Unknown")))
+    st.markdown(
+        f"""
+        <div class="av-status-grid">
+            <div class="av-status-card {severity_badge_class(overall_severity)}">
+                <div class="av-status-label">Primary Event</div>
+                <div class="av-status-value">{safe_primary_event}</div>
+            </div>
+            <div class="av-status-card">
+                <div class="av-status-label">Peak Score</div>
+                <div class="av-status-value">{video_analysis.get('overall_score', 0):.3f}</div>
+            </div>
+            <div class="av-status-card {severity_badge_class(overall_severity)}">
+                <div class="av-status-label">Severity</div>
+                <div class="av-status-value">{sev_i} {overall_severity}</div>
+            </div>
+            <div class="av-status-card {severity_badge_class(overall_severity)}">
+                <div class="av-status-label">Critical Flag</div>
+                <div class="av-status-value">{alert_text}</div>
+            </div>
+            <div class="av-status-card">
+                <div class="av-status-label">Anomalous Chunks</div>
+                <div class="av-status-value">{video_analysis.get('anomalous_chunks', 0)}/{video_analysis.get('total_chunks', 0)}</div>
+            </div>
+            <div class="av-status-card">
+                <div class="av-status-label">Pipeline Time</div>
+                <div class="av-status-value">{pipeline_time:.1f}s</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown("### 🔀 Adaptive Router — Tier Usage")
     t0, t1, t2, t3 = st.columns(4)
     t0.metric("T0 CLIP Skip", tier_counts.get(0, 0))
@@ -414,31 +720,24 @@ def run_pipeline(
     t2.metric("T2 Semantic", tier_counts.get(2, 0))
     t3.metric("T3 Temporal", tier_counts.get(3, 0))
 
-    # Narrative
     st.markdown("### 📝 Agent Narrative")
     st.info(video_analysis.get("narrative", "No narrative."))
 
-    # Chunk timeline table
     if video_analysis.get("chunk_details"):
         st.markdown("### 📋 Chunk Timeline")
         df = pd.DataFrame(video_analysis["chunk_details"])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
-    # Pipeline performance summary
     st.markdown("### ⚡ Pipeline Performance")
     if chunk_results:
         latencies = [r["latency"] for r in chunk_results]
         p1, p2, p3, p4 = st.columns(4)
         p1.metric("Avg VLM Latency", f"{sum(latencies)/len(latencies):.1f}s")
         p2.metric("Total VLM Calls", f"{len(chunk_results)}")
-        p3.metric(
-            "Chunks Skipped (CLIP)",
-            f"{len(skipped_chunks)}",
-        )
-        vlm_time = sum(latencies)
+        p3.metric("Chunks Skipped (CLIP)", f"{len(skipped_chunks)}")
         p4.metric(
             "VLM Compute Saved",
-            f"{len(skipped_chunks) * (sum(latencies)/max(len(latencies),1)):.0f}s",
+            f"{len(skipped_chunks) * (sum(latencies)/max(len(latencies), 1)):.0f}s",
         )
 
 
@@ -447,13 +746,20 @@ def run_pipeline(
 # ═════════════════════════════════════════════════════════════════════
 
 def page_alerts(db):
-    st.title("🚨 Alert Dashboard")
-    alerts = db.get_alerts(limit=50)
+    st.title("Alert Dashboard")
+
+    cameras = db.get_cameras()
+    cam_filter = None
+    if cameras:
+        options = ["All cameras"] + cameras
+        sel = st.selectbox("Filter by camera", options, index=0)
+        cam_filter = None if sel == "All cameras" else sel
+
+    alerts = db.get_alerts(limit=50, camera_id=cam_filter)
     if not alerts:
         st.info("No alerts yet. Process a video to generate alerts.")
         return
 
-    # Summary metrics
     alert_count = sum(1 for a in alerts if a["alert_status"] == "ALERT")
     watch_count = sum(1 for a in alerts if a["alert_status"] == "WATCH")
     ac1, ac2 = st.columns(2)
@@ -464,18 +770,16 @@ def page_alerts(db):
 
     for a in alerts:
         sev = severity_icon(a.get("severity", "LOW"))
+        cam_label = a.get("camera_id", "?")
         with st.expander(
-            f"{sev} {a['event_type']} | {a['video_name']} "
+            f"{sev} [{cam_label}] {a['event_type']} | {a['video_name']} "
             f"C{a['chunk_index']} | Score: {a['anomaly_score']} | "
             f"Tier {a.get('tier_used', '?')}",
             expanded=(a["alert_status"] == "ALERT"),
         ):
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Score", f"{a.get('anomaly_score', 0):.2f}")
-            c2.metric(
-                "Time",
-                f"{a['start_sec']}s-{a['end_sec']}s",
-            )
+            c2.metric("Time", f"{a['start_sec']}s-{a['end_sec']}s")
             c3.metric("Tier", f"{a.get('tier_used', '?')}")
             c4.metric("Similar Past", f"{a.get('similar_count', 0)}")
 
@@ -494,11 +798,8 @@ def page_alerts(db):
 # ═════════════════════════════════════════════════════════════════════
 
 def page_search(db, embedder):
-    st.title("🔍 Search Similar Incidents")
-    st.markdown(
-        "Describe a scenario → Milvus finds similar past incidents "
-        "via vector similarity search."
-    )
+    st.title("Search Similar Incidents")
+    st.caption("Describe a scenario — Milvus finds similar past incidents via vector similarity search.")
 
     query = st.text_area(
         "Describe the incident",
@@ -520,10 +821,7 @@ def page_search(db, embedder):
                     f"Similarity: {r['similarity']:.3f}"
                 ):
                     st.markdown(f"**Caption:** {r['caption']}")
-                    st.metric(
-                        "Past Anomaly Score",
-                        f"{r.get('anomaly_score', 0):.2f}",
-                    )
+                    st.metric("Past Anomaly Score", f"{r.get('anomaly_score', 0):.2f}")
         else:
             st.warning("No similar incidents found.")
 
@@ -533,19 +831,25 @@ def page_search(db, embedder):
 # ═════════════════════════════════════════════════════════════════════
 
 def page_stats(db):
-    st.title("📊 Statistics")
-    stats = db.get_event_stats()
+    st.title("Statistics")
+
+    cameras = db.get_cameras()
+    cam_filter = None
+    if cameras:
+        options = ["All cameras"] + cameras
+        sel = st.selectbox("Filter by camera", options, index=0)
+        cam_filter = None if sel == "All cameras" else sel
+
+    stats = db.get_event_stats(camera_id=cam_filter)
     if not stats:
         st.info("No data yet. Process videos to see statistics.")
         return
 
     df = pd.DataFrame(stats)
-
     st.markdown("### Event Distribution")
     st.bar_chart(df.set_index("event_type")["count"])
-
     st.markdown("### Details")
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -553,28 +857,49 @@ def page_stats(db):
 # ═════════════════════════════════════════════════════════════════════
 
 def page_history(db):
-    st.title("📋 Video History")
-    videos = db.get_all_videos()
+    st.title("Video History")
+
+    cameras = db.get_cameras()
+    cam_filter = None
+    if cameras:
+        options = ["All cameras"] + cameras
+        sel = st.selectbox("Filter by camera", options, index=0)
+        cam_filter = None if sel == "All cameras" else sel
+
+    videos = db.get_all_videos(camera_id=cam_filter)
     if not videos:
         st.info("No videos processed yet.")
         return
 
     for v in videos:
         sev = severity_icon(v.get("overall_severity", "LOW"))
+        cam_label = v.get("camera_id", "?")
         with st.expander(
-            f"{sev} {v['video_name']} | {v['primary_event']} | "
+            f"{sev} [{cam_label}] {v['video_name']} | {v['primary_event']} | "
             f"Score: {v.get('overall_score', 0):.2f} | "
             f"{v.get('anomalous_chunks', 0)}/"
             f"{v.get('total_chunks', 0)} anomalous"
         ):
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Duration", f"{v.get('duration_sec', 0)}s")
-            c2.metric("Chunks", f"{v.get('total_chunks', 0)}")
-            c3.metric("Score", f"{v.get('overall_score', 0):.2f}")
-            c4.metric("When", str(v.get("processed_at", ""))[:19])
 
-            if v.get("narrative"):
-                st.markdown(f"**Narrative:**\n{v['narrative']}")
+            c1, c2, c3, c4, c5 = st.columns(5)
+
+            c1.metric("Duration", f"{v.get('duration_sec', 0):.1f}s")
+            c2.metric("Chunks", v.get('total_chunks', 0))
+            c3.metric("Score", f"{v.get('overall_score', 0):.2f}")
+
+            # Parse timestamp
+            ts = str(v.get("processed_at", ""))
+            date_display = "—"
+            time_display = ""
+            try:
+                dt = datetime.fromisoformat(ts[:19])
+                date_display = dt.strftime("%b %d")   # "Apr 18"
+                time_display = dt.strftime("%I:%M %p")  # "05:48 AM"
+            except Exception:
+                date_display = ts[:10] if len(ts) >= 10 else ts
+
+            c4.metric("Date", date_display)
+            c5.metric("Time", time_display)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -585,7 +910,8 @@ def main():
     page = render_sidebar()
 
     try:
-        perception, embedder, db, agent, clip_filter = init_system()
+        embedder, db, agent = init_core_system()
+        clip_filter = init_clip_filter(db.pg_conn)  # leading _ tells Streamlit not to hash pg_conn
     except Exception as e:
         st.error(f"⚠️ System init failed: {e}")
         st.markdown(
@@ -598,7 +924,7 @@ def main():
         return
 
     if page == "📹 Process Video":
-        page_process(perception, embedder, db, agent, clip_filter)
+        page_process(embedder, db, agent, clip_filter)
     elif page == "🚨 Alerts":
         page_alerts(db)
     elif page == "🔍 Search":

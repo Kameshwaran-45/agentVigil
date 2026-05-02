@@ -130,6 +130,7 @@ def extract_chunks_and_frames(
     max_chunks: int = MAX_CHUNKS,
     sampling_strategy: str = SAMPLING_STRATEGY,
     overlap_sec: float = CHUNK_OVERLAP_SEC,
+    frames_per_second: int = FRAMES_PER_SECOND,
 ) -> Dict[int, Dict[str, Any]]:
     """
     Adaptively splits video into chunks and extracts 1 frame/sec.
@@ -250,11 +251,11 @@ def extract_chunks_and_frames(
             continue
 
         # Extract 1 frame per second within this chunk
-        num_frames = max(1, int(actual_duration))
+        num_frames = max(1, int(actual_duration * frames_per_second))
         saved_paths = []
 
         for i in range(num_frames):
-            target_time = current_start + i
+            target_time = current_start + (i / frames_per_second)
             target_frame_idx = int(target_time * fps)
             target_frame_idx = min(target_frame_idx, total_frames - 1)
 
@@ -264,8 +265,12 @@ def extract_chunks_and_frames(
                 continue
 
             # NAMING: identical to benchmark_vlm.py
+            chunk_dir = os.path.join(frames_dir, f"chunk{chunk_index:04d}")
+            os.makedirs(chunk_dir, exist_ok=True)
+
             fname = f"{video_name}_chunk{chunk_index:04d}_frame{i}.jpg"
-            fpath = os.path.join(frames_dir, fname)
+            fpath = os.path.join(chunk_dir, fname)
+
             cv2.imwrite(fpath, frame)
             saved_paths.append(fpath)
 
