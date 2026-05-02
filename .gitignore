@@ -22,3 +22,6 @@ dist/
 Benchmarking/
 hf_cache/
 utils/unified_ground_truth_sample.py
+
+venv/
+.env/
