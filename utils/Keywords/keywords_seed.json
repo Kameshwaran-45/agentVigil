@@ -1,0 +1,2353 @@
+{
+  "high_priority_categories": [
+    "Burglary",
+    "Shooting",
+    "Robbery",
+    "Arson",
+    "Explosion"
+  ],
+  "keywords_by_category": {
+    "Abuse": [
+      {
+        "keyword": "abuse",
+        "weight": 3
+      },
+      {
+        "keyword": "animal abuse",
+        "weight": 3
+      },
+      {
+        "keyword": "child abuse",
+        "weight": 3
+      },
+      {
+        "keyword": "domestic violence",
+        "weight": 3
+      },
+      {
+        "keyword": "cruelty",
+        "weight": 3
+      },
+      {
+        "keyword": "mistreatment",
+        "weight": 3
+      },
+      {
+        "keyword": "maltreatment",
+        "weight": 3
+      },
+      {
+        "keyword": "physical abuse",
+        "weight": 3
+      },
+      {
+        "keyword": "battery",
+        "weight": 3
+      },
+      {
+        "keyword": "hit",
+        "weight": 2
+      },
+      {
+        "keyword": "hitting",
+        "weight": 2
+      },
+      {
+        "keyword": "strike",
+        "weight": 2
+      },
+      {
+        "keyword": "striking",
+        "weight": 2
+      },
+      {
+        "keyword": "punch",
+        "weight": 2
+      },
+      {
+        "keyword": "punching",
+        "weight": 2
+      },
+      {
+        "keyword": "kick",
+        "weight": 2
+      },
+      {
+        "keyword": "kicking",
+        "weight": 2
+      },
+      {
+        "keyword": "slap",
+        "weight": 2
+      },
+      {
+        "keyword": "slapping",
+        "weight": 2
+      },
+      {
+        "keyword": "beat",
+        "weight": 2
+      },
+      {
+        "keyword": "beating",
+        "weight": 2
+      },
+      {
+        "keyword": "shove",
+        "weight": 2
+      },
+      {
+        "keyword": "shoving",
+        "weight": 2
+      },
+      {
+        "keyword": "push",
+        "weight": 2
+      },
+      {
+        "keyword": "pushing",
+        "weight": 2
+      },
+      {
+        "keyword": "drag",
+        "weight": 2
+      },
+      {
+        "keyword": "dragging",
+        "weight": 2
+      },
+      {
+        "keyword": "throw",
+        "weight": 2
+      },
+      {
+        "keyword": "throwing",
+        "weight": 2
+      },
+      {
+        "keyword": "slam",
+        "weight": 2
+      },
+      {
+        "keyword": "slamming",
+        "weight": 2
+      },
+      {
+        "keyword": "choke",
+        "weight": 2
+      },
+      {
+        "keyword": "choking",
+        "weight": 2
+      },
+      {
+        "keyword": "stomp",
+        "weight": 2
+      },
+      {
+        "keyword": "stomping",
+        "weight": 2
+      },
+      {
+        "keyword": "yell at",
+        "weight": 2
+      },
+      {
+        "keyword": "scream at",
+        "weight": 2
+      },
+      {
+        "keyword": "berating",
+        "weight": 2
+      },
+      {
+        "keyword": "cornering",
+        "weight": 2
+      },
+      {
+        "keyword": "intimidating",
+        "weight": 2
+      },
+      {
+        "keyword": "menacing",
+        "weight": 2
+      },
+      {
+        "keyword": "raise hand",
+        "weight": 2
+      },
+      {
+        "keyword": "lunge at",
+        "weight": 2
+      },
+      {
+        "keyword": "animal",
+        "weight": 1
+      },
+      {
+        "keyword": "pet",
+        "weight": 1
+      },
+      {
+        "keyword": "dog",
+        "weight": 1
+      },
+      {
+        "keyword": "cat",
+        "weight": 1
+      },
+      {
+        "keyword": "child",
+        "weight": 1
+      },
+      {
+        "keyword": "toddler",
+        "weight": 1
+      },
+      {
+        "keyword": "woman",
+        "weight": 1
+      },
+      {
+        "keyword": "man",
+        "weight": 1
+      },
+      {
+        "keyword": "elderly",
+        "weight": 1
+      },
+      {
+        "keyword": "vulnerable person",
+        "weight": 1
+      },
+      {
+        "keyword": "aggressor",
+        "weight": 1
+      },
+      {
+        "keyword": "cowering",
+        "weight": 1
+      },
+      {
+        "keyword": "flinching",
+        "weight": 1
+      },
+      {
+        "keyword": "crying",
+        "weight": 1
+      },
+      {
+        "keyword": "shouting",
+        "weight": 1
+      },
+      {
+        "keyword": "whimpering",
+        "weight": 1
+      },
+      {
+        "keyword": "yelping",
+        "weight": 1
+      },
+      {
+        "keyword": "helpless",
+        "weight": 1
+      },
+      {
+        "keyword": "defenseless",
+        "weight": 1
+      },
+      {
+        "keyword": "on the ground",
+        "weight": 1
+      },
+      {
+        "keyword": "cornered",
+        "weight": 1
+      },
+      {
+        "keyword": "struggling",
+        "weight": 1
+      },
+      {
+        "keyword": "trying to escape",
+        "weight": 1
+      },
+      {
+        "keyword": "does not fight back",
+        "weight": 1
+      },
+      {
+        "keyword": "restrained",
+        "weight": 1
+      },
+      {
+        "keyword": "leash",
+        "weight": 1
+      },
+      {
+        "keyword": "cage",
+        "weight": 1
+      },
+      {
+        "keyword": "bruise",
+        "weight": 1
+      },
+      {
+        "keyword": "injury",
+        "weight": 1
+      },
+      {
+        "keyword": "fearful",
+        "weight": 1
+      },
+      {
+        "keyword": "in distress",
+        "weight": 1
+      },
+      {
+        "keyword": "argument",
+        "weight": 1
+      },
+      {
+        "keyword": "victim",
+        "weight": 1
+      }
+    ],
+    "Arrest": [
+      {
+        "keyword": "arrest",
+        "weight": 3
+      },
+      {
+        "keyword": "arrested",
+        "weight": 3
+      },
+      {
+        "keyword": "detention",
+        "weight": 3
+      },
+      {
+        "keyword": "apprehension",
+        "weight": 3
+      },
+      {
+        "keyword": "taken into custody",
+        "weight": 3
+      },
+      {
+        "keyword": "handcuff",
+        "weight": 2
+      },
+      {
+        "keyword": "handcuffs",
+        "weight": 2
+      },
+      {
+        "keyword": "handcuffing",
+        "weight": 2
+      },
+      {
+        "keyword": "restrain",
+        "weight": 2
+      },
+      {
+        "keyword": "restraining",
+        "weight": 2
+      },
+      {
+        "keyword": "detain",
+        "weight": 2
+      },
+      {
+        "keyword": "pin to ground",
+        "weight": 2
+      },
+      {
+        "keyword": "tackle",
+        "weight": 2
+      },
+      {
+        "keyword": "subdue",
+        "weight": 2
+      },
+      {
+        "keyword": "pat down",
+        "weight": 2
+      },
+      {
+        "keyword": "frisking",
+        "weight": 2
+      },
+      {
+        "keyword": "escort",
+        "weight": 2
+      },
+      {
+        "keyword": "placed in car",
+        "weight": 2
+      },
+      {
+        "keyword": "hands behind back",
+        "weight": 2
+      },
+      {
+        "keyword": "surrender",
+        "weight": 2
+      },
+      {
+        "keyword": "hands up",
+        "weight": 2
+      },
+      {
+        "keyword": "on the ground",
+        "weight": 2
+      },
+      {
+        "keyword": "resisting arrest",
+        "weight": 2
+      },
+      {
+        "keyword": "police",
+        "weight": 1
+      },
+      {
+        "keyword": "officer",
+        "weight": 1
+      },
+      {
+        "keyword": "cop",
+        "weight": 1
+      },
+      {
+        "keyword": "sheriff",
+        "weight": 1
+      },
+      {
+        "keyword": "law enforcement",
+        "weight": 1
+      },
+      {
+        "keyword": "uniform",
+        "weight": 1
+      },
+      {
+        "keyword": "badge",
+        "weight": 1
+      },
+      {
+        "keyword": "patrol car",
+        "weight": 1
+      },
+      {
+        "keyword": "squad car",
+        "weight": 1
+      },
+      {
+        "keyword": "sirens",
+        "weight": 1
+      },
+      {
+        "keyword": "flashing lights",
+        "weight": 1
+      },
+      {
+        "keyword": "suspect",
+        "weight": 1
+      },
+      {
+        "keyword": "perp",
+        "weight": 1
+      },
+      {
+        "keyword": "custody",
+        "weight": 1
+      },
+      {
+        "keyword": "weapon drawn",
+        "weight": 1
+      },
+      {
+        "keyword": "struggling with officer",
+        "weight": 1
+      },
+      {
+        "keyword": "perpetrator",
+        "weight": 1
+      }
+    ],
+    "Arson": [
+      {
+        "keyword": "arson",
+        "weight": 3
+      },
+      {
+        "keyword": "arsonist",
+        "weight": 3
+      },
+      {
+        "keyword": "deliberately set fire",
+        "weight": 3
+      },
+      {
+        "keyword": "incendiary",
+        "weight": 3
+      },
+      {
+        "keyword": "firebombing",
+        "weight": 3
+      },
+      {
+        "keyword": "set fire",
+        "weight": 2
+      },
+      {
+        "keyword": "setting fire",
+        "weight": 2
+      },
+      {
+        "keyword": "ignite",
+        "weight": 2
+      },
+      {
+        "keyword": "igniting",
+        "weight": 2
+      },
+      {
+        "keyword": "torch",
+        "weight": 2
+      },
+      {
+        "keyword": "torching",
+        "weight": 2
+      },
+      {
+        "keyword": "light fire",
+        "weight": 2
+      },
+      {
+        "keyword": "start fire",
+        "weight": 2
+      },
+      {
+        "keyword": "pour accelerant",
+        "weight": 2
+      },
+      {
+        "keyword": "dousing",
+        "weight": 2
+      },
+      {
+        "keyword": "throwing molotov",
+        "weight": 2
+      },
+      {
+        "keyword": "spread fire",
+        "weight": 2
+      },
+      {
+        "keyword": "walks away from fire",
+        "weight": 2
+      },
+      {
+        "keyword": "fire",
+        "weight": 1
+      },
+      {
+        "keyword": "flames",
+        "weight": 1
+      },
+      {
+        "keyword": "blaze",
+        "weight": 1
+      },
+      {
+        "keyword": "burning",
+        "weight": 1
+      },
+      {
+        "keyword": "smoke",
+        "weight": 1
+      },
+      {
+        "keyword": "billowing smoke",
+        "weight": 1
+      },
+      {
+        "keyword": "gasoline",
+        "weight": 1
+      },
+      {
+        "keyword": "petrol",
+        "weight": 1
+      },
+      {
+        "keyword": "lighter",
+        "weight": 1
+      },
+      {
+        "keyword": "match",
+        "weight": 1
+      },
+      {
+        "keyword": "accelerant",
+        "weight": 1
+      },
+      {
+        "keyword": "fuel can",
+        "weight": 1
+      },
+      {
+        "keyword": "gas can",
+        "weight": 1
+      },
+      {
+        "keyword": "molotov cocktail",
+        "weight": 1
+      },
+      {
+        "keyword": "building on fire",
+        "weight": 1
+      },
+      {
+        "keyword": "car on fire",
+        "weight": 1
+      },
+      {
+        "keyword": "engulfed in flames",
+        "weight": 1
+      },
+      {
+        "keyword": "charred",
+        "weight": 1
+      },
+      {
+        "keyword": "scorched",
+        "weight": 1
+      },
+      {
+        "keyword": "soot",
+        "weight": 1
+      },
+      {
+        "keyword": "firefighter",
+        "weight": 1
+      },
+      {
+        "keyword": "fire truck",
+        "weight": 1
+      },
+      {
+        "keyword": "fire alarm",
+        "weight": 1
+      }
+    ],
+    "Burglary": [
+      {
+        "keyword": "burglary",
+        "weight": 3
+      },
+      {
+        "keyword": "burglar",
+        "weight": 3
+      },
+      {
+        "keyword": "break-in",
+        "weight": 3
+      },
+      {
+        "keyword": "breaking and entering",
+        "weight": 3
+      },
+      {
+        "keyword": "forced entry",
+        "weight": 3
+      },
+      {
+        "keyword": "home invasion",
+        "weight": 3
+      },
+      {
+        "keyword": "break in",
+        "weight": 2
+      },
+      {
+        "keyword": "force door",
+        "weight": 2
+      },
+      {
+        "keyword": "kick down door",
+        "weight": 2
+      },
+      {
+        "keyword": "pry open",
+        "weight": 2
+      },
+      {
+        "keyword": "jimmy lock",
+        "weight": 2
+      },
+      {
+        "keyword": "picking lock",
+        "weight": 2
+      },
+      {
+        "keyword": "break window",
+        "weight": 2
+      },
+      {
+        "keyword": "smash window",
+        "weight": 2
+      },
+      {
+        "keyword": "climb through window",
+        "weight": 2
+      },
+      {
+        "keyword": "sneak in",
+        "weight": 2
+      },
+      {
+        "keyword": "trespassing",
+        "weight": 2
+      },
+      {
+        "keyword": "ransacking",
+        "weight": 2
+      },
+      {
+        "keyword": "casing the joint",
+        "weight": 2
+      },
+      {
+        "keyword": "disabling alarm",
+        "weight": 2
+      },
+      {
+        "keyword": "covering camera",
+        "weight": 2
+      },
+      {
+        "keyword": "crowbar",
+        "weight": 1
+      },
+      {
+        "keyword": "lockpick",
+        "weight": 1
+      },
+      {
+        "keyword": "hammer",
+        "weight": 1
+      },
+      {
+        "keyword": "bolt cutters",
+        "weight": 1
+      },
+      {
+        "keyword": "ladder",
+        "weight": 1
+      },
+      {
+        "keyword": "masked",
+        "weight": 1
+      },
+      {
+        "keyword": "hooded",
+        "weight": 1
+      },
+      {
+        "keyword": "gloves",
+        "weight": 1
+      },
+      {
+        "keyword": "backpack",
+        "weight": 1
+      },
+      {
+        "keyword": "flashlight",
+        "weight": 1
+      },
+      {
+        "keyword": "dark",
+        "weight": 1
+      },
+      {
+        "keyword": "night",
+        "weight": 1
+      },
+      {
+        "keyword": "after hours",
+        "weight": 1
+      },
+      {
+        "keyword": "house",
+        "weight": 1
+      },
+      {
+        "keyword": "residence",
+        "weight": 1
+      },
+      {
+        "keyword": "store",
+        "weight": 1
+      },
+      {
+        "keyword": "shop",
+        "weight": 1
+      },
+      {
+        "keyword": "office",
+        "weight": 1
+      },
+      {
+        "keyword": "warehouse",
+        "weight": 1
+      },
+      {
+        "keyword": "property",
+        "weight": 1
+      },
+      {
+        "keyword": "broken glass",
+        "weight": 1
+      },
+      {
+        "keyword": "shattered window",
+        "weight": 1
+      },
+      {
+        "keyword": "door ajar",
+        "weight": 1
+      },
+      {
+        "keyword": "forced open",
+        "weight": 1
+      },
+      {
+        "keyword": "alarm sounding",
+        "weight": 1
+      },
+      {
+        "keyword": "security camera",
+        "weight": 1
+      }
+    ],
+    "Explosion": [
+      {
+        "keyword": "explosion",
+        "weight": 3
+      },
+      {
+        "keyword": "detonation",
+        "weight": 3
+      },
+      {
+        "keyword": "bombing",
+        "weight": 3
+      },
+      {
+        "keyword": "bomb blast",
+        "weight": 3
+      },
+      {
+        "keyword": "explode",
+        "weight": 2
+      },
+      {
+        "keyword": "explodes",
+        "weight": 2
+      },
+      {
+        "keyword": "detonate",
+        "weight": 2
+      },
+      {
+        "keyword": "detonates",
+        "weight": 2
+      },
+      {
+        "keyword": "erupts",
+        "weight": 2
+      },
+      {
+        "keyword": "goes off",
+        "weight": 2
+      },
+      {
+        "keyword": "bomb",
+        "weight": 1
+      },
+      {
+        "keyword": "ied",
+        "weight": 1
+      },
+      {
+        "keyword": "car bomb",
+        "weight": 1
+      },
+      {
+        "keyword": "pipe bomb",
+        "weight": 1
+      },
+      {
+        "keyword": "explosives",
+        "weight": 1
+      },
+      {
+        "keyword": "shockwave",
+        "weight": 1
+      },
+      {
+        "keyword": "blast",
+        "weight": 1
+      },
+      {
+        "keyword": "pressure wave",
+        "weight": 1
+      },
+      {
+        "keyword": "fireball",
+        "weight": 1
+      },
+      {
+        "keyword": "debris flying",
+        "weight": 1
+      },
+      {
+        "keyword": "shrapnel",
+        "weight": 1
+      },
+      {
+        "keyword": "building collapses",
+        "weight": 1
+      },
+      {
+        "keyword": "vehicle explodes",
+        "weight": 1
+      },
+      {
+        "keyword": "mushroom cloud",
+        "weight": 1
+      },
+      {
+        "keyword": "plume of smoke",
+        "weight": 1
+      },
+      {
+        "keyword": "loud bang",
+        "weight": 1
+      },
+      {
+        "keyword": "wreckage",
+        "weight": 1
+      },
+      {
+        "keyword": "rubble",
+        "weight": 1
+      },
+      {
+        "keyword": "crater",
+        "weight": 1
+      },
+      {
+        "keyword": "aftermath",
+        "weight": 1
+      },
+      {
+        "keyword": "shattered windows",
+        "weight": 1
+      },
+      {
+        "keyword": "charred",
+        "weight": 1
+      },
+      {
+        "keyword": "scorched",
+        "weight": 1
+      },
+      {
+        "keyword": "bomb squad",
+        "weight": 1
+      }
+    ],
+    "Fighting": [
+      {
+        "keyword": "fighting",
+        "weight": 3
+      },
+      {
+        "keyword": "brawl",
+        "weight": 3
+      },
+      {
+        "keyword": "mutual combat",
+        "weight": 3
+      },
+      {
+        "keyword": "physical altercation",
+        "weight": 3
+      },
+      {
+        "keyword": "melee",
+        "weight": 3
+      },
+      {
+        "keyword": "scuffle",
+        "weight": 3
+      },
+      {
+        "keyword": "riot",
+        "weight": 3
+      },
+      {
+        "keyword": "exchange blows",
+        "weight": 2
+      },
+      {
+        "keyword": "trading punches",
+        "weight": 2
+      },
+      {
+        "keyword": "swinging at each other",
+        "weight": 2
+      },
+      {
+        "keyword": "punching each other",
+        "weight": 2
+      },
+      {
+        "keyword": "kicking each other",
+        "weight": 2
+      },
+      {
+        "keyword": "wrestling",
+        "weight": 2
+      },
+      {
+        "keyword": "grappling",
+        "weight": 2
+      },
+      {
+        "keyword": "shoving match",
+        "weight": 2
+      },
+      {
+        "keyword": "charging at each other",
+        "weight": 2
+      },
+      {
+        "keyword": "assault",
+        "weight": 1
+      },
+      {
+        "keyword": "attack",
+        "weight": 1
+      },
+      {
+        "keyword": "two people",
+        "weight": 1
+      },
+      {
+        "keyword": "group fight",
+        "weight": 1
+      },
+      {
+        "keyword": "mob",
+        "weight": 1
+      },
+      {
+        "keyword": "crowd",
+        "weight": 1
+      },
+      {
+        "keyword": "aggressive",
+        "weight": 1
+      },
+      {
+        "keyword": "hostile",
+        "weight": 1
+      },
+      {
+        "keyword": "confrontation",
+        "weight": 1
+      },
+      {
+        "keyword": "pushing",
+        "weight": 1
+      },
+      {
+        "keyword": "shoving",
+        "weight": 1
+      },
+      {
+        "keyword": "yelling",
+        "weight": 1
+      },
+      {
+        "keyword": "shouting",
+        "weight": 1
+      },
+      {
+        "keyword": "argument",
+        "weight": 1
+      },
+      {
+        "keyword": "bar fight",
+        "weight": 1
+      },
+      {
+        "keyword": "street fight",
+        "weight": 1
+      },
+      {
+        "keyword": "onlookers",
+        "weight": 1
+      },
+      {
+        "keyword": "security intervening",
+        "weight": 1
+      },
+      {
+        "keyword": "knocked over",
+        "weight": 1
+      }
+    ],
+    "RoadAccidents": [
+      {
+        "keyword": "road accident",
+        "weight": 3
+      },
+      {
+        "keyword": "car accident",
+        "weight": 3
+      },
+      {
+        "keyword": "vehicle collision",
+        "weight": 3
+      },
+      {
+        "keyword": "car crash",
+        "weight": 3
+      },
+      {
+        "keyword": "pile-up",
+        "weight": 3
+      },
+      {
+        "keyword": "hit and run",
+        "weight": 3
+      },
+      {
+        "keyword": "collide",
+        "weight": 2
+      },
+      {
+        "keyword": "crash",
+        "weight": 2
+      },
+      {
+        "keyword": "hit by car",
+        "weight": 2
+      },
+      {
+        "keyword": "struck by vehicle",
+        "weight": 2
+      },
+      {
+        "keyword": "rear-end",
+        "weight": 2
+      },
+      {
+        "keyword": "t-bone",
+        "weight": 2
+      },
+      {
+        "keyword": "sideswipe",
+        "weight": 2
+      },
+      {
+        "keyword": "run over",
+        "weight": 2
+      },
+      {
+        "keyword": "swerve",
+        "weight": 2
+      },
+      {
+        "keyword": "skid",
+        "weight": 2
+      },
+      {
+        "keyword": "loses control",
+        "weight": 2
+      },
+      {
+        "keyword": "rollover",
+        "weight": 2
+      },
+      {
+        "keyword": "overturns",
+        "weight": 2
+      },
+      {
+        "keyword": "runs red light",
+        "weight": 2
+      },
+      {
+        "keyword": "car",
+        "weight": 1
+      },
+      {
+        "keyword": "truck",
+        "weight": 1
+      },
+      {
+        "keyword": "bus",
+        "weight": 1
+      },
+      {
+        "keyword": "motorcycle",
+        "weight": 1
+      },
+      {
+        "keyword": "bicycle",
+        "weight": 1
+      },
+      {
+        "keyword": "vehicle",
+        "weight": 1
+      },
+      {
+        "keyword": "pedestrian",
+        "weight": 1
+      },
+      {
+        "keyword": "intersection",
+        "weight": 1
+      },
+      {
+        "keyword": "highway",
+        "weight": 1
+      },
+      {
+        "keyword": "road",
+        "weight": 1
+      },
+      {
+        "keyword": "street",
+        "weight": 1
+      },
+      {
+        "keyword": "crosswalk",
+        "weight": 1
+      },
+      {
+        "keyword": "traffic",
+        "weight": 1
+      },
+      {
+        "keyword": "wreck",
+        "weight": 1
+      },
+      {
+        "keyword": "wreckage",
+        "weight": 1
+      },
+      {
+        "keyword": "debris on road",
+        "weight": 1
+      },
+      {
+        "keyword": "dented",
+        "weight": 1
+      },
+      {
+        "keyword": "smashed",
+        "weight": 1
+      },
+      {
+        "keyword": "overturned",
+        "weight": 1
+      },
+      {
+        "keyword": "airbags deployed",
+        "weight": 1
+      },
+      {
+        "keyword": "skid marks",
+        "weight": 1
+      },
+      {
+        "keyword": "shattered glass",
+        "weight": 1
+      },
+      {
+        "keyword": "ambulance",
+        "weight": 1
+      },
+      {
+        "keyword": "paramedics",
+        "weight": 1
+      },
+      {
+        "keyword": "emergency services",
+        "weight": 1
+      },
+      {
+        "keyword": "fire truck",
+        "weight": 1
+      },
+      {
+        "keyword": "tow truck",
+        "weight": 1
+      },
+      {
+        "keyword": "knocked over",
+        "weight": 1
+      }
+    ],
+    "Robbery": [
+      {
+        "keyword": "robbery",
+        "weight": 3
+      },
+      {
+        "keyword": "armed robbery",
+        "weight": 3
+      },
+      {
+        "keyword": "mugging",
+        "weight": 3
+      },
+      {
+        "keyword": "holdup",
+        "weight": 3
+      },
+      {
+        "keyword": "carjacking",
+        "weight": 3
+      },
+      {
+        "keyword": "rob",
+        "weight": 2
+      },
+      {
+        "keyword": "robs",
+        "weight": 2
+      },
+      {
+        "keyword": "mug",
+        "weight": 2
+      },
+      {
+        "keyword": "mugs",
+        "weight": 2
+      },
+      {
+        "keyword": "threaten",
+        "weight": 2
+      },
+      {
+        "keyword": "demands money",
+        "weight": 2
+      },
+      {
+        "keyword": "hand over valuables",
+        "weight": 2
+      },
+      {
+        "keyword": "at gunpoint",
+        "weight": 2
+      },
+      {
+        "keyword": "at knifepoint",
+        "weight": 2
+      },
+      {
+        "keyword": "taking by force",
+        "weight": 2
+      },
+      {
+        "keyword": "point weapon at",
+        "weight": 2
+      },
+      {
+        "keyword": "brandishing weapon",
+        "weight": 2
+      },
+      {
+        "keyword": "grab and run",
+        "weight": 2
+      },
+      {
+        "keyword": "snatch",
+        "weight": 2
+      },
+      {
+        "keyword": "purse snatching",
+        "weight": 2
+      },
+      {
+        "keyword": "empty the register",
+        "weight": 2
+      },
+      {
+        "keyword": "gun",
+        "weight": 1
+      },
+      {
+        "keyword": "knife",
+        "weight": 1
+      },
+      {
+        "keyword": "weapon",
+        "weight": 1
+      },
+      {
+        "keyword": "masked",
+        "weight": 1
+      },
+      {
+        "keyword": "hooded",
+        "weight": 1
+      },
+      {
+        "keyword": "disguised",
+        "weight": 1
+      },
+      {
+        "keyword": "assailant",
+        "weight": 1
+      },
+      {
+        "keyword": "robber",
+        "weight": 1
+      },
+      {
+        "keyword": "thief",
+        "weight": 1
+      },
+      {
+        "keyword": "accomplice",
+        "weight": 1
+      },
+      {
+        "keyword": "getaway car",
+        "weight": 1
+      },
+      {
+        "keyword": "victim",
+        "weight": 1
+      },
+      {
+        "keyword": "victim present",
+        "weight": 1
+      },
+      {
+        "keyword": "cash register",
+        "weight": 1
+      },
+      {
+        "keyword": "wallet",
+        "weight": 1
+      },
+      {
+        "keyword": "purse",
+        "weight": 1
+      },
+      {
+        "keyword": "phone",
+        "weight": 1
+      },
+      {
+        "keyword": "valuables",
+        "weight": 1
+      },
+      {
+        "keyword": "store",
+        "weight": 1
+      },
+      {
+        "keyword": "shop",
+        "weight": 1
+      },
+      {
+        "keyword": "bank",
+        "weight": 1
+      },
+      {
+        "keyword": "atm",
+        "weight": 1
+      },
+      {
+        "keyword": "clerk",
+        "weight": 1
+      },
+      {
+        "keyword": "pedestrian",
+        "weight": 1
+      },
+      {
+        "keyword": "flee",
+        "weight": 1
+      },
+      {
+        "keyword": "runs away",
+        "weight": 1
+      },
+      {
+        "keyword": "hands in the air",
+        "weight": 1
+      }
+    ],
+    "Shooting": [
+      {
+        "keyword": "shooting",
+        "weight": 3
+      },
+      {
+        "keyword": "gunfire",
+        "weight": 3
+      },
+      {
+        "keyword": "shots fired",
+        "weight": 3
+      },
+      {
+        "keyword": "gun shot",
+        "weight": 3
+      },
+      {
+        "keyword": "active shooter",
+        "weight": 3
+      },
+      {
+        "keyword": "shootout",
+        "weight": 3
+      },
+      {
+        "keyword": "shoots",
+        "weight": 2
+      },
+      {
+        "keyword": "fires gun",
+        "weight": 2
+      },
+      {
+        "keyword": "open fire",
+        "weight": 2
+      },
+      {
+        "keyword": "discharges weapon",
+        "weight": 2
+      },
+      {
+        "keyword": "aims gun",
+        "weight": 2
+      },
+      {
+        "keyword": "pulls trigger",
+        "weight": 2
+      },
+      {
+        "keyword": "gun",
+        "weight": 1
+      },
+      {
+        "keyword": "handgun",
+        "weight": 1
+      },
+      {
+        "keyword": "pistol",
+        "weight": 1
+      },
+      {
+        "keyword": "rifle",
+        "weight": 1
+      },
+      {
+        "keyword": "shotgun",
+        "weight": 1
+      },
+      {
+        "keyword": "firearm",
+        "weight": 1
+      },
+      {
+        "keyword": "muzzle flash",
+        "weight": 1
+      },
+      {
+        "keyword": "shell casings",
+        "weight": 1
+      },
+      {
+        "keyword": "bullet",
+        "weight": 1
+      },
+      {
+        "keyword": "sound of gunfire",
+        "weight": 1
+      },
+      {
+        "keyword": "recoil",
+        "weight": 1
+      },
+      {
+        "keyword": "victim falls",
+        "weight": 1
+      },
+      {
+        "keyword": "person shot",
+        "weight": 1
+      },
+      {
+        "keyword": "person collapses",
+        "weight": 1
+      },
+      {
+        "keyword": "wounded",
+        "weight": 1
+      },
+      {
+        "keyword": "shooter",
+        "weight": 1
+      },
+      {
+        "keyword": "gunman",
+        "weight": 1
+      },
+      {
+        "keyword": "armed person",
+        "weight": 1
+      },
+      {
+        "keyword": "taking cover",
+        "weight": 1
+      },
+      {
+        "keyword": "ducking",
+        "weight": 1
+      },
+      {
+        "keyword": "crowd scattering",
+        "weight": 1
+      },
+      {
+        "keyword": "people running in panic",
+        "weight": 1
+      },
+      {
+        "keyword": "street",
+        "weight": 1
+      },
+      {
+        "keyword": "vehicle",
+        "weight": 1
+      },
+      {
+        "keyword": "public place",
+        "weight": 1
+      }
+    ],
+    "Shoplifting": [
+      {
+        "keyword": "shoplifting",
+        "weight": 3
+      },
+      {
+        "keyword": "shoplifter",
+        "weight": 3
+      },
+      {
+        "keyword": "retail theft",
+        "weight": 3
+      },
+      {
+        "keyword": "concealment of goods",
+        "weight": 3
+      },
+      {
+        "keyword": "conceal item",
+        "weight": 2
+      },
+      {
+        "keyword": "hides merchandise",
+        "weight": 2
+      },
+      {
+        "keyword": "pocket item",
+        "weight": 2
+      },
+      {
+        "keyword": "tucks into bag",
+        "weight": 2
+      },
+      {
+        "keyword": "slips into coat",
+        "weight": 2
+      },
+      {
+        "keyword": "stuffs into clothing",
+        "weight": 2
+      },
+      {
+        "keyword": "leaves without paying",
+        "weight": 2
+      },
+      {
+        "keyword": "exits without purchase",
+        "weight": 2
+      },
+      {
+        "keyword": "walks past checkout",
+        "weight": 2
+      },
+      {
+        "keyword": "bypasses cashier",
+        "weight": 2
+      },
+      {
+        "keyword": "removes security tag",
+        "weight": 2
+      },
+      {
+        "keyword": "grab and dash",
+        "weight": 2
+      },
+      {
+        "keyword": "store",
+        "weight": 1
+      },
+      {
+        "keyword": "shop",
+        "weight": 1
+      },
+      {
+        "keyword": "retail",
+        "weight": 1
+      },
+      {
+        "keyword": "supermarket",
+        "weight": 1
+      },
+      {
+        "keyword": "aisle",
+        "weight": 1
+      },
+      {
+        "keyword": "shelf",
+        "weight": 1
+      },
+      {
+        "keyword": "fitting room",
+        "weight": 1
+      },
+      {
+        "keyword": "checkout",
+        "weight": 1
+      },
+      {
+        "keyword": "merchandise",
+        "weight": 1
+      },
+      {
+        "keyword": "product",
+        "weight": 1
+      },
+      {
+        "keyword": "item",
+        "weight": 1
+      },
+      {
+        "keyword": "price tag",
+        "weight": 1
+      },
+      {
+        "keyword": "shopping bag",
+        "weight": 1
+      },
+      {
+        "keyword": "personal bag",
+        "weight": 1
+      },
+      {
+        "keyword": "backpack",
+        "weight": 1
+      },
+      {
+        "keyword": "shopping cart",
+        "weight": 1
+      },
+      {
+        "keyword": "acting suspicious",
+        "weight": 1
+      },
+      {
+        "keyword": "glancing at cameras",
+        "weight": 1
+      },
+      {
+        "keyword": "loss prevention",
+        "weight": 1
+      },
+      {
+        "keyword": "store security",
+        "weight": 1
+      },
+      {
+        "keyword": "security tag",
+        "weight": 1
+      },
+      {
+        "keyword": "security camera",
+        "weight": 1
+      }
+    ],
+    "Stealing": [
+      {
+        "keyword": "stealing",
+        "weight": 3
+      },
+      {
+        "keyword": "theft",
+        "weight": 3
+      },
+      {
+        "keyword": "larceny",
+        "weight": 3
+      },
+      {
+        "keyword": "pickpocket",
+        "weight": 3
+      },
+      {
+        "keyword": "package theft",
+        "weight": 3
+      },
+      {
+        "keyword": "porch pirate",
+        "weight": 3
+      },
+      {
+        "keyword": "bicycle theft",
+        "weight": 3
+      },
+      {
+        "keyword": "steal",
+        "weight": 2
+      },
+      {
+        "keyword": "steals",
+        "weight": 2
+      },
+      {
+        "keyword": "take item",
+        "weight": 2
+      },
+      {
+        "keyword": "snatch",
+        "weight": 2
+      },
+      {
+        "keyword": "grabs item",
+        "weight": 2
+      },
+      {
+        "keyword": "swipe",
+        "weight": 2
+      },
+      {
+        "keyword": "lifts item",
+        "weight": 2
+      },
+      {
+        "keyword": "takes without permission",
+        "weight": 2
+      },
+      {
+        "keyword": "walks off with",
+        "weight": 2
+      },
+      {
+        "keyword": "pick pocketing",
+        "weight": 2
+      },
+      {
+        "keyword": "reaches into bag",
+        "weight": 2
+      },
+      {
+        "keyword": "cuts bike lock",
+        "weight": 2
+      },
+      {
+        "keyword": "grabbing package",
+        "weight": 2
+      },
+      {
+        "keyword": "unattended",
+        "weight": 1
+      },
+      {
+        "keyword": "distracted victim",
+        "weight": 1
+      },
+      {
+        "keyword": "victim unaware",
+        "weight": 1
+      },
+      {
+        "keyword": "no confrontation",
+        "weight": 1
+      },
+      {
+        "keyword": "stealthy",
+        "weight": 1
+      },
+      {
+        "keyword": "thief",
+        "weight": 1
+      },
+      {
+        "keyword": "phone",
+        "weight": 1
+      },
+      {
+        "keyword": "laptop",
+        "weight": 1
+      },
+      {
+        "keyword": "wallet",
+        "weight": 1
+      },
+      {
+        "keyword": "purse",
+        "weight": 1
+      },
+      {
+        "keyword": "handbag",
+        "weight": 1
+      },
+      {
+        "keyword": "bag",
+        "weight": 1
+      },
+      {
+        "keyword": "backpack",
+        "weight": 1
+      },
+      {
+        "keyword": "bicycle",
+        "weight": 1
+      },
+      {
+        "keyword": "bike",
+        "weight": 1
+      },
+      {
+        "keyword": "package",
+        "weight": 1
+      },
+      {
+        "keyword": "mail",
+        "weight": 1
+      },
+      {
+        "keyword": "porch",
+        "weight": 1
+      },
+      {
+        "keyword": "public place",
+        "weight": 1
+      },
+      {
+        "keyword": "crowd",
+        "weight": 1
+      },
+      {
+        "keyword": "bench",
+        "weight": 1
+      },
+      {
+        "keyword": "table",
+        "weight": 1
+      },
+      {
+        "keyword": "unlocked car",
+        "weight": 1
+      },
+      {
+        "keyword": "bus stop",
+        "weight": 1
+      },
+      {
+        "keyword": "cafe",
+        "weight": 1
+      },
+      {
+        "keyword": "park",
+        "weight": 1
+      }
+    ],
+    "Vandalism": [
+      {
+        "keyword": "vandalism",
+        "weight": 3
+      },
+      {
+        "keyword": "vandalize",
+        "weight": 3
+      },
+      {
+        "keyword": "property damage",
+        "weight": 3
+      },
+      {
+        "keyword": "destruction of property",
+        "weight": 3
+      },
+      {
+        "keyword": "defacement",
+        "weight": 3
+      },
+      {
+        "keyword": "graffiti",
+        "weight": 3
+      },
+      {
+        "keyword": "smash",
+        "weight": 2
+      },
+      {
+        "keyword": "smashing",
+        "weight": 2
+      },
+      {
+        "keyword": "break",
+        "weight": 2
+      },
+      {
+        "keyword": "breaking",
+        "weight": 2
+      },
+      {
+        "keyword": "shatter",
+        "weight": 2
+      },
+      {
+        "keyword": "destroy",
+        "weight": 2
+      },
+      {
+        "keyword": "damage",
+        "weight": 2
+      },
+      {
+        "keyword": "deface",
+        "weight": 2
+      },
+      {
+        "keyword": "spray paint",
+        "weight": 2
+      },
+      {
+        "keyword": "tagging",
+        "weight": 2
+      },
+      {
+        "keyword": "scratch",
+        "weight": 2
+      },
+      {
+        "keyword": "keying car",
+        "weight": 2
+      },
+      {
+        "keyword": "kicks over",
+        "weight": 2
+      },
+      {
+        "keyword": "slashing tires",
+        "weight": 2
+      },
+      {
+        "keyword": "throwing rock",
+        "weight": 2
+      },
+      {
+        "keyword": "vandal",
+        "weight": 1
+      },
+      {
+        "keyword": "delinquent",
+        "weight": 1
+      },
+      {
+        "keyword": "perpetrator",
+        "weight": 1
+      },
+      {
+        "keyword": "spray paint can",
+        "weight": 1
+      },
+      {
+        "keyword": "paint",
+        "weight": 1
+      },
+      {
+        "keyword": "marker",
+        "weight": 1
+      },
+      {
+        "keyword": "rock",
+        "weight": 1
+      },
+      {
+        "keyword": "brick",
+        "weight": 1
+      },
+      {
+        "keyword": "baseball bat",
+        "weight": 1
+      },
+      {
+        "keyword": "crowbar",
+        "weight": 1
+      },
+      {
+        "keyword": "knife",
+        "weight": 1
+      },
+      {
+        "keyword": "car window",
+        "weight": 1
+      },
+      {
+        "keyword": "windshield",
+        "weight": 1
+      },
+      {
+        "keyword": "storefront",
+        "weight": 1
+      },
+      {
+        "keyword": "wall",
+        "weight": 1
+      },
+      {
+        "keyword": "sign",
+        "weight": 1
+      },
+      {
+        "keyword": "bench",
+        "weight": 1
+      },
+      {
+        "keyword": "mailbox",
+        "weight": 1
+      },
+      {
+        "keyword": "public property",
+        "weight": 1
+      },
+      {
+        "keyword": "broken",
+        "weight": 1
+      },
+      {
+        "keyword": "shattered",
+        "weight": 1
+      },
+      {
+        "keyword": "cracked",
+        "weight": 1
+      },
+      {
+        "keyword": "dented",
+        "weight": 1
+      },
+      {
+        "keyword": "tagged",
+        "weight": 1
+      },
+      {
+        "keyword": "vehicle",
+        "weight": 1
+      },
+      {
+        "keyword": "burning",
+        "weight": 1
+      }
+    ],
+    "Normal_Videos_event": [
+      {
+        "keyword": "normal activity",
+        "weight": 3
+      },
+      {
+        "keyword": "no anomaly",
+        "weight": 3
+      },
+      {
+        "keyword": "routine",
+        "weight": 3
+      },
+      {
+        "keyword": "uneventful",
+        "weight": 3
+      },
+      {
+        "keyword": "benign",
+        "weight": 3
+      },
+      {
+        "keyword": "walking",
+        "weight": 2
+      },
+      {
+        "keyword": "strolling",
+        "weight": 2
+      },
+      {
+        "keyword": "driving",
+        "weight": 2
+      },
+      {
+        "keyword": "standing",
+        "weight": 2
+      },
+      {
+        "keyword": "waiting",
+        "weight": 2
+      },
+      {
+        "keyword": "sitting",
+        "weight": 2
+      },
+      {
+        "keyword": "talking",
+        "weight": 2
+      },
+      {
+        "keyword": "chatting",
+        "weight": 2
+      },
+      {
+        "keyword": "shopping",
+        "weight": 2
+      },
+      {
+        "keyword": "browsing",
+        "weight": 2
+      },
+      {
+        "keyword": "eating",
+        "weight": 2
+      },
+      {
+        "keyword": "jogging",
+        "weight": 2
+      },
+      {
+        "keyword": "playing",
+        "weight": 2
+      },
+      {
+        "keyword": "working",
+        "weight": 2
+      },
+      {
+        "keyword": "commuting",
+        "weight": 2
+      },
+      {
+        "keyword": "pedestrians",
+        "weight": 1
+      },
+      {
+        "keyword": "people",
+        "weight": 1
+      },
+      {
+        "keyword": "person",
+        "weight": 1
+      },
+      {
+        "keyword": "crowd",
+        "weight": 1
+      },
+      {
+        "keyword": "customers",
+        "weight": 1
+      },
+      {
+        "keyword": "traffic",
+        "weight": 1
+      },
+      {
+        "keyword": "vehicles",
+        "weight": 1
+      },
+      {
+        "keyword": "daytime",
+        "weight": 1
+      },
+      {
+        "keyword": "peaceful",
+        "weight": 1
+      },
+      {
+        "keyword": "calm",
+        "weight": 1
+      },
+      {
+        "keyword": "ordinary",
+        "weight": 1
+      },
+      {
+        "keyword": "everyday",
+        "weight": 1
+      },
+      {
+        "keyword": "no incident",
+        "weight": 1
+      },
+      {
+        "keyword": "no crime",
+        "weight": 1
+      },
+      {
+        "keyword": "public space",
+        "weight": 1
+      },
+      {
+        "keyword": "park",
+        "weight": 1
+      },
+      {
+        "keyword": "sidewalk",
+        "weight": 1
+      },
+      {
+        "keyword": "store",
+        "weight": 1
+      },
+      {
+        "keyword": "shop",
+        "weight": 1
+      },
+      {
+        "keyword": "office",
+        "weight": 1
+      },
+      {
+        "keyword": "cafe",
+        "weight": 1
+      },
+      {
+        "keyword": "bus stop",
+        "weight": 1
+      }
+    ]
+  }
+}
