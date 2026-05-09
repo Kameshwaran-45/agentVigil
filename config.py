@@ -73,35 +73,23 @@ SAMPLING_STRATEGY = "uniform"
 # Set to 1.0 for 1-second overlap between chunks (catches boundary events).
 # Recommendation: 0.0 for benchmarking, 1.0 for production deployment.
 
-# ── CLIP Pre-Filter ─────────────────────────────────────────────────
-CLIP_ENABLED = True
-CLIP_MODEL = "ViT-B/32"
-CLIP_ANOMALY_THRESHOLD = 0.25
+# ── Flashback (Phase 2) — replaces CLIP pre-filter ───────────────────
+FLASHBACK_ENABLED               = True
+FLASHBACK_ENCODER               = "PE-Core-L14-336"  # PE backbone
+FLASHBACK_TOP_K                 = 10                  # paper's K = 10
+FLASHBACK_THRESHOLD             = 0.25                # gate threshold; same scale as old CLIP_ANOMALY_THRESHOLD
+FLASHBACK_ALPHA                 = 0.95                # SAP — applied at memory-build time, not here
+FLASHBACK_FRAMES_PER_SEGMENT    = 16                  # paper's Tsample
+FLASHBACK_INPUT_RES             = 448
 
-CLIP_ANOMALY_PROMPTS = [
-    "a car accident on the road",
-    "a vehicle collision with debris",
-    "a person fighting another person",
-    "a violent assault in progress",
-    "a robbery or mugging",
-    "a person stealing from a store",
-    "a person vandalizing property",
-    "a fire burning in a building",
-    "a person running away from a crime scene",
-    "a person with a weapon",
-    "suspicious activity at night",
-    "a break-in or burglary",
-]
+# When Flashback gate passes a chunk, also pass its top retrieved
+# captions to the VLM as a prior context block. Set False to disable
+# the hybrid mode and run the gate alone.
+FLASHBACK_FEED_CAPTIONS_TO_VLM  = True
 
-CLIP_NORMAL_PROMPTS = [
-    "people walking normally on a street",
-    "cars driving on a road following traffic rules",
-    "an empty quiet parking lot",
-    "normal traffic at an intersection",
-    "a quiet store with customers shopping peacefully",
-    "people sitting on a bench",
-    "a calm residential neighborhood",
-]
+# Number of retrieved captions injected into the VLM prompt (≤ FLASHBACK_TOP_K).
+# Keep small to avoid drowning the VLM in priors.
+FLASHBACK_VLM_PRIOR_K           = 3
 
 # ── Databases ───────────────────────────────────────────────────────
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")

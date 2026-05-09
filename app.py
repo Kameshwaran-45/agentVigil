@@ -24,22 +24,27 @@ import pandas as pd
 from datetime import datetime
 
 from config import (
-    CLIP_ENABLED,
-    CHUNK_CONTEXT_ENABLED,
-    CHUNK_CONTEXT_MAX_CHARS,
-    CHUNK_OVERLAP_SEC,
-    FRAMES_PER_SECOND,
-    SAMPLING_STRATEGY,
-    VLM_REGISTRY,
-    DEFAULT_VLM,
-)
+        CHUNK_CONTEXT_ENABLED,
+        CHUNK_CONTEXT_MAX_CHARS,
+        CHUNK_OVERLAP_SEC,
+        FRAMES_PER_SECOND,
+        SAMPLING_STRATEGY,
+        VLM_REGISTRY,
+        DEFAULT_VLM,
+        FLASHBACK_ENABLED,
+        FLASHBACK_ENCODER,
+        FLASHBACK_TOP_K,
+        FLASHBACK_THRESHOLD,
+        FLASHBACK_FEED_CAPTIONS_TO_VLM,
+        FLASHBACK_VLM_PRIOR_K,
+    )
 from prompt_loader import get_prompt_registry, get_default_stem
 from video_processor import extract_chunks_and_frames, get_video_info
 from perception import PerceptionEngine
 from embeddings import EmbeddingEngine
 from database import DatabaseManager
 from agent import AdaptiveReasoningAgent
-from clip_filter import CLIPFilter
+from flashback_filter import FlashbackFilter
 
 
 st.set_page_config(
@@ -197,14 +202,17 @@ def init_core_system():
 
 
 @st.cache_resource
-def init_clip_filter(_pg_conn):
-    """
-    Load CLIP filter with DB connection so prompts are fetched from
-    the clip_prompts table instead of config.py hardcoded lists.
-    """
-    clip_filter = CLIPFilter()
-    clip_filter.load(pg_conn=_pg_conn)
-    return clip_filter
+def init_flashback_filter(_pg_conn):
+    '''Phase 2: PE-based Flashback gate. Replaces CLIPFilter.'''
+    if not FLASHBACK_ENABLED:
+        return None
+    fb = FlashbackFilter(
+        top_k=FLASHBACK_TOP_K,
+        encoder_model=FLASHBACK_ENCODER,
+    )
+    fb.load(pg_conn=_pg_conn)
+    return fb
+
 
 
 @st.cache_resource
@@ -311,7 +319,7 @@ def render_sidebar():
 # PAGE: PROCESS VIDEO
 # ═════════════════════════════════════════════════════════════════════
 
-def page_process(embedder, db, agent, clip_filter):
+def page_process(embedder, db, agent, flashback_filter):
     # Read current selections from session state
     model_key = st.session_state.get("selected_model", DEFAULT_VLM)
     prompt_stem = st.session_state.get("prompt_stem", get_default_stem())
@@ -410,7 +418,7 @@ def page_process(embedder, db, agent, clip_filter):
 
     run_pipeline(
         tmp_path, video_name, info,
-        perception, embedder, db, agent, clip_filter,
+        perception, embedder, db, agent, flashback_filter,
         prompt_stem=prompt_stem,
         camera_id=camera_id,
     )
@@ -418,7 +426,7 @@ def page_process(embedder, db, agent, clip_filter):
 
 def run_pipeline(
     video_path, video_name, info,
-    perception, embedder, db, agent, clip_filter,
+    perception, embedder, db, agent, flashback_filter,
     prompt_stem: str = "standard",
     camera_id: str = "CAM-01",
 ):
@@ -453,53 +461,62 @@ def run_pipeline(
             state="complete",
         )
 
-    # ── CLIP PRE-FILTER ─────────────────────────────────────────────
     with st.status(
-        "⏳ CLIP Pre-Filter: Scoring chunks...", expanded=False
-    ) as s_clip:
-        passed_chunks, skipped_chunks, clip_stats = (
-            clip_filter.filter_chunks(chunks)
-        )
-        if clip_stats["enabled"]:
-            # Cache prompt stats for sidebar display
-            st.session_state["_clip_prompt_stats"] = clip_stats.get("prompt_stats", {})
-            s_clip.update(
+        "⏳ Flashback Filter: PE retrieval scoring...", expanded=False
+    ) as s_fb:
+        if flashback_filter is None:
+            # Flashback disabled in config — pass everything through
+            passed_chunks  = chunks
+            skipped_chunks = {}
+            fb_stats = {"enabled": False, "total": len(chunks),
+                        "passed": len(chunks), "skipped": 0,
+                        "filter_rate": 0.0, "compute_saved_pct": 0.0,
+                        "scores": {}}
+            s_fb.update(label="⚪ Flashback: Disabled — all chunks pass",
+                        state="complete")
+        else:
+            passed_chunks, skipped_chunks, fb_stats = (
+                flashback_filter.filter_chunks(
+                    chunks, threshold=FLASHBACK_THRESHOLD,
+                )
+            )
+            mem_stats = fb_stats.get("memory_stats", {})
+            s_fb.update(
                 label=(
-                    f"✅ CLIP Filter: {clip_stats['passed']}/"
-                    f"{clip_stats['total']} passed "
-                    f"({clip_stats['compute_saved_pct']}% filtered) | "
-                    f"{clip_stats.get('prompt_stats',{}).get('anomaly_count','?')}a/"
-                    f"{clip_stats.get('prompt_stats',{}).get('normal_count','?')}n prompts"
+                    f"✅ Flashback: {fb_stats['passed']}/{fb_stats['total']} passed "
+                    f"({fb_stats['compute_saved_pct']}% filtered) | "
+                    f"K={fb_stats.get('top_k','?')} | "
+                    f"{mem_stats.get('normal_count','?')}n / "
+                    f"{mem_stats.get('anomalous_count','?')}a memory"
                 ),
                 state="complete",
             )
-        else:
-            s_clip.update(
-                label="⚪ CLIP Filter: Disabled — all chunks pass",
-                state="complete",
-            )
+            st.session_state["_flashback_stats"] = fb_stats
 
-    if clip_stats["enabled"] and clip_stats.get("scores"):
-        st.markdown("#### CLIP Anomaly Scores")
-        scores = clip_stats["scores"]
+    if fb_stats.get("enabled") and fb_stats.get("scores"):
+        st.markdown("#### Flashback Anomaly Scores")
+        scores = fb_stats["scores"]
         score_df = pd.DataFrame([
             {
-                "Chunk": f"C{k}",
-                "CLIP Score": v,
+                "Chunk":  f"C{k}",
+                "Flashback Score": v,
                 "Status": "✅ VLM" if k in passed_chunks else "❌ Skip",
             }
             for k, v in sorted(scores.items())
         ])
-        st.bar_chart(score_df.set_index("Chunk")["CLIP Score"])
+        st.bar_chart(score_df.set_index("Chunk")["Flashback Score"])
 
         mc1, mc2, mc3 = st.columns(3)
-        mc1.metric("→ VLM", clip_stats["passed"])
-        mc2.metric("Skipped", clip_stats["skipped"])
-        mc3.metric("Compute Saved", f"{clip_stats['compute_saved_pct']}%")
+        mc1.metric("→ VLM",       fb_stats["passed"])
+        mc2.metric("Skipped",     fb_stats["skipped"])
+        mc3.metric("Compute Saved", f"{fb_stats['compute_saved_pct']}%")
 
     # ── Process SKIPPED chunks (auto Normal, no VLM) ────────────────
     for cidx, cinfo in sorted(skipped_chunks.items()):
-        embedding = embedder.embed_text("Normal activity. No anomaly detected.")
+        retrieved = cinfo.get("flashback_top_captions", [])[:1]
+        retrieved_str = retrieved[0] if retrieved else "Normal activity."
+
+        embedding = embedder.embed_text(retrieved_str)
         db.store_chunk(
             video_name=video_name,
             chunk_index=cidx,
@@ -507,16 +524,18 @@ def run_pipeline(
             end_sec=cinfo["end_sec"],
             num_frames=cinfo["num_frames"],
             caption=(
-                f"[CLIP filtered — score: "
-                f"{cinfo.get('clip_score', 0):.3f}] Normal activity."
+                f"[Flashback filtered — score: "
+                f"{cinfo.get('flashback_score', 0):.3f}] {retrieved_str}"
             ),
             event_type="Normal Activity",
             embedding=embedding,
             anomaly_score=0.0,
             camera_id=camera_id,
             metadata={
-                "clip_score": cinfo.get("clip_score", 0),
-                "clip_filtered": True,
+                "flashback_score":      cinfo.get("flashback_score", 0),
+                "flashback_filtered":   True,
+                "flashback_top_caps":   cinfo.get("flashback_top_captions", []),
+                "flashback_top_cats":   cinfo.get("flashback_top_categories", []),
             },
         )
 
@@ -549,11 +568,28 @@ def run_pipeline(
             ),
         )
 
-        # ── Stage 1: VLM Caption  ← prompt_type flows in here ───────
+        # Build Flashback prior — top retrieved captions as scene priors
+        fb_prior = ""
+        if FLASHBACK_FEED_CAPTIONS_TO_VLM:
+            top_caps = cinfo.get("flashback_top_captions", [])
+            top_cats = cinfo.get("flashback_top_categories", [])
+            K = min(FLASHBACK_VLM_PRIOR_K, len(top_caps))
+            if K > 0:
+                lines = [
+                    f"  {i+1}. [{top_cats[i] if i < len(top_cats) else '?'}] "
+                    f"{top_caps[i]}"
+                    for i in range(K)
+                ]
+                fb_prior = (
+                    "Retrieved scene priors (similarity-ranked from memory):\\n"
+                    + "\\n".join(lines)
+                )
+
         caption, latency = perception.caption_chunk(
             cinfo["frame_paths"],
             prompt_type=prompt_stem,
             prev_context=rolling_context if CHUNK_CONTEXT_ENABLED else "",
+            flashback_prior=fb_prior,
         )
         event_type = perception.extract_event_type(caption)
         embedding = embedder.embed_text(caption)
@@ -574,12 +610,14 @@ def run_pipeline(
             embedding=embedding,
             camera_id=camera_id,
             metadata={
-                "clip_score": cinfo.get("clip_score", 0),
-                "clip_filtered": False,
-                "latency": latency,
-                "model": perception.model_key,
-                "prompt_stem": prompt_stem,
-            },
+            "flashback_score":      cinfo.get("flashback_score", 0),
+            "flashback_filtered":   False,
+            "flashback_top_caps":   cinfo.get("flashback_top_captions", []),
+            "flashback_top_cats":   cinfo.get("flashback_top_categories", []),
+            "latency":              latency,
+            "model":                perception.model_key,
+            "prompt_stem":          prompt_stem,
+        },
         )
 
         # Stage 2: Adaptive Decision Router
@@ -628,7 +666,7 @@ def run_pipeline(
                 if frame_paths:
                     with st.popover(
                         f"🖼️ View Frames ({len(frame_paths)})",
-                        use_container_width=True,
+                        width="stretch",
                     ):
                         st.caption(
                             f"**Chunk {cidx}** · "
@@ -643,7 +681,7 @@ def run_pipeline(
                                 row_cols[k].image(
                                     fp,
                                     caption=f"f{start + k}",
-                                    use_container_width=True,
+                                    width="stretch",
                                 )
 
             # ── Caption ─────────────────────────────────────────────
@@ -911,7 +949,7 @@ def main():
 
     try:
         embedder, db, agent = init_core_system()
-        clip_filter = init_clip_filter(db.pg_conn)  # leading _ tells Streamlit not to hash pg_conn
+        flashback_filter = init_flashback_filter(db.pg_conn)  # leading _ tells Streamlit not to hash pg_conn
     except Exception as e:
         st.error(f"⚠️ System init failed: {e}")
         st.markdown(
@@ -924,7 +962,7 @@ def main():
         return
 
     if page == "📹 Process Video":
-        page_process(embedder, db, agent, clip_filter)
+        page_process(embedder, db, agent, flashback_filter)
     elif page == "🚨 Alerts":
         page_alerts(db)
     elif page == "🔍 Search":

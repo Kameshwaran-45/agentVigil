@@ -39,7 +39,7 @@ STRICT RULES:
 - Do NOT invent new categories
 - Do NOT output generic filler. EVERY description must be specific about what happens.
 - If a "### Previous Chunk Context" section is provided, use it only as temporal background. NEVER copy or repeat it.
-- Always prioritize evidence in the CURRENT chunk while using previous summary only for continuity.
+- Always prioritize evidence in the CURRENT chunk while using previous summary only for continuity. If a "### Scene Priors" section is provided, treat it as a HYPOTHESIS, not fact. Verify each prior against what you see in the video. Endorse priors that match the visible evidence; ignore priors that do not. Never copy a prior verbatim.
 
 IMPORTANT DETECTION PATTERNS:
 - COLLISION: Vehicles approach each other abruptly, impact, or sudden stop

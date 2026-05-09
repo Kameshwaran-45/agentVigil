@@ -148,12 +148,15 @@ class PerceptionEngine:
         self._adapter.load()
 
     def caption_chunk(
-        self,
-        frame_paths: List[str],
-        prompt_type: str = "standard",
-        prev_context: str = "",
-    ) -> Tuple[str, float]:
-        return self._adapter.caption_chunk(frame_paths, prompt_type, prev_context)
+            self,
+            frame_paths: List[str],
+            prompt_type: str = "standard",
+            prev_context: str = "",
+            flashback_prior: str = "",
+        ) -> Tuple[str, float]:
+            return self._adapter.caption_chunk(
+                frame_paths, prompt_type, prev_context, flashback_prior,
+            )
 
     def extract_event_type(self, caption: str) -> str:
         return extract_event_from_caption(caption)

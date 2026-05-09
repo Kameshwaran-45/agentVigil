@@ -19,15 +19,12 @@ class BaseVideoAdapter(ABC):
         self.loaded = False
 
     @abstractmethod
-    def load(self) -> None:
-        """Load model weights into GPU. Called once at startup."""
-
-    @abstractmethod
     def caption_chunk(
         self,
         frame_paths: List[str],
         prompt_type: str = "standard",
         prev_context: str = "",
+        flashback_prior: str = "",
     ) -> Tuple[str, float]:
         """
         Generate a surveillance caption from a list of JPEG frame paths.

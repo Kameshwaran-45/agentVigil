@@ -119,24 +119,33 @@ class VideoLLaMA3Adapter(BaseVideoAdapter):
         frame_paths: List[str],
         prompt_type: str = "standard",
         prev_context: str = "",
+        flashback_prior: str = "",
     ) -> Tuple[str, float]:
         if not self.loaded:
             self.load()
 
         if not frame_paths:
             return "[ERROR] No frames provided", 0.0
-
+ 
         selected_paths = self._select_frame_paths(frame_paths)
         frames_chw = self._load_frame_batch(selected_paths)
 
         system_prompt, user_text = self._get_prompt(len(selected_paths), prompt_type)
-        print('previos context: ',prev_context)
+
+        if flashback_prior:
+            user_text = (
+                f"### Scene Priors (retrieved from memory, NOT ground truth — verify each against the video):\\n"
+                f"{flashback_prior}\\n\\n"
+                f"---\\n\\n"
+                f"{user_text}"
+            )
+
         if prev_context:
             user_text = (
-                f"### Previous Chunk Summary Context (for temporal reference only — DO NOT COPY OR REPEAT):\n"
-                f"{prev_context}\n\n"
-                f"---\n\n"
-                f"### Current Chunk Analysis (describe ONLY what you see in the video frames below):\n"
+                f"### Previous Chunk Summary Context (for temporal reference only — DO NOT COPY OR REPEAT):\\n"
+                f"{prev_context}\\n\\n"
+                f"---\\n\\n"
+                f"### Current Chunk Analysis (describe ONLY what you see in the video frames below):\\n"
                 f"{user_text}"
             )
 
