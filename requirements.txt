@@ -1,7 +1,4 @@
-transformers
 torch
-bitsandbytes
-accelerate
 opencv-python
 av
 pandas
@@ -14,3 +11,7 @@ sentence-transformers
 nltk
 rouge-score
 bert-score
+transformers>=4.49.0 
+qwen-vl-utils 
+accelerate>=0.30.0 
+bitsandbytes>=0.43.0

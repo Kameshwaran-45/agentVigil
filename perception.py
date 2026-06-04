@@ -109,6 +109,59 @@ def extract_event_from_caption(caption: str) -> str:
                 return canon
     return "Normal_Videos_event"
 
+def extract_structured_output(caption: str) -> dict:
+    """
+    Parse Phase-2 analyst-style VLM output into a structured dict.
+
+    The prompt asks the VLM to emit:
+        Detailed: ...
+        Summary: ...
+        CONFIRMED: <yes|no>
+        EVIDENCE: <2-3 sentences>
+        SEVERITY: <low|medium|high>
+        EVENT: <category>
+
+    Returns:
+        {
+            "event":     str   — canonical category (always set, default Normal_Videos_event)
+            "confirmed": bool  — whether VLM confirmed the gate's hypothesis (default False)
+            "severity":  str   — "low" | "medium" | "high" (default "low")
+            "evidence":  str   — VLM's evidence text, truncated to 500 chars
+        }
+
+    Backward compatible — if the VLM emits only the old Detailed/Summary/EVENT
+    format, CONFIRMED/SEVERITY/EVIDENCE default to False/low/"" and EVENT is
+    still parsed correctly via extract_event_from_caption.
+    """
+    result = {
+        "event":     "Normal_Videos_event",
+        "confirmed": False,
+        "severity":  "low",
+        "evidence":  "",
+    }
+
+    # EVENT — delegate to existing parser
+    result["event"] = extract_event_from_caption(caption)
+
+    # CONFIRMED line
+    m = re.search(r"CONFIRMED:\s*(yes|no|true|false)\b", caption, re.IGNORECASE)
+    if m:
+        result["confirmed"] = m.group(1).lower() in ("yes", "true")
+
+    # SEVERITY line
+    m = re.search(r"SEVERITY:\s*(low|medium|high)\b", caption, re.IGNORECASE)
+    if m:
+        result["severity"] = m.group(1).lower()
+
+    # EVIDENCE — capture until the next known label or end of string
+    m = re.search(
+        r"EVIDENCE:\s*(.+?)(?:\n\s*(?:SEVERITY|EVENT|CONFIRMED|SUMMARY):|\Z)",
+        caption, re.IGNORECASE | re.DOTALL,
+    )
+    if m:
+        result["evidence"] = m.group(1).strip()[:500]
+
+    return result
 
 # ══════════════════════════════════════════════════════════════════════
 # PERCEPTION ENGINE — public facade used by app.py
@@ -160,6 +213,9 @@ class PerceptionEngine:
 
     def extract_event_type(self, caption: str) -> str:
         return extract_event_from_caption(caption)
+    
+    def extract_structured_output(self, caption: str) -> dict:
+        return extract_structured_output(caption)
 
     def unload(self) -> None:
         self._adapter.unload()

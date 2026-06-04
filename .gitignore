@@ -6,6 +6,7 @@ __pycache__/
 # Virtual environments
 venv/
 .env
+.gitignore
 
 # Jupyter
 .ipynb_checkpoints/
@@ -20,5 +21,6 @@ dist/
 
 .vscode/
 Benchmarking/
+benchmark_results/
 hf_cache/
 utils/unified_ground_truth_sample.py

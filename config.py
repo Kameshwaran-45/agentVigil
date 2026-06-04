@@ -35,6 +35,16 @@ VLM_REGISTRY = {
         "display_name": "VideoLLaMA3-2B",
         "description": "Lightweight video-native model. Lower VRAM, faster.",
     },
+    "Qwen2.5-VL-3B": {
+    "adapter": "Qwen25VLAdapter",
+    "model_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+    "display_name": "Qwen2.5-VL-3B-Instruct (4-bit)",
+    "description": (
+        "Video-native VLM with dynamic FPS sampling. ~10s/chunk "
+        "latency at 4-bit on 12GB VRAM. Use when categorical "
+        "metrics are the bottleneck."
+    ),
+},
 }
 
 DEFAULT_VLM = "VideoLLaMA3-2B"
@@ -60,7 +70,7 @@ CHUNK_DURATION_TIERS = [
 ]
 
 MAX_CHUNKS = 100
-FRAMES_PER_SECOND = 10
+FRAMES_PER_SECOND = 2
 CHUNK_OVERLAP_SEC = 0.0
 CHUNK_CONTEXT_ENABLED = True
 CHUNK_CONTEXT_MAX_CHARS = 320

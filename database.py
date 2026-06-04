@@ -135,7 +135,7 @@ class DatabaseManager:
         print("[DB] PostgreSQL ready")
 
     def _connect_milvus(self):
-        connections.connect("default", host=MILVUS_HOST, port=MILVUS_PORT)
+        connections.connect("default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=10)
 
         if not utility.has_collection(MILVUS_COLLECTION):
             fields = [

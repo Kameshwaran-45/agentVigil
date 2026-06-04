@@ -126,28 +126,20 @@ class VideoLLaMA3Adapter(BaseVideoAdapter):
 
         if not frame_paths:
             return "[ERROR] No frames provided", 0.0
- 
+
         selected_paths = self._select_frame_paths(frame_paths)
         frames_chw = self._load_frame_batch(selected_paths)
 
         system_prompt, user_text = self._get_prompt(len(selected_paths), prompt_type)
 
-        if flashback_prior:
-            user_text = (
-                f"### Scene Priors (retrieved from memory, NOT ground truth — verify each against the video):\\n"
-                f"{flashback_prior}\\n\\n"
-                f"---\\n\\n"
-                f"{user_text}"
-            )
-
-        if prev_context:
-            user_text = (
-                f"### Previous Chunk Summary Context (for temporal reference only — DO NOT COPY OR REPEAT):\\n"
-                f"{prev_context}\\n\\n"
-                f"---\\n\\n"
-                f"### Current Chunk Analysis (describe ONLY what you see in the video frames below):\\n"
-                f"{user_text}"
-            )
+        # ── FIX: weave the Flashback prior + prev_context into user_text
+        # using the shared helper so it lands in the same structured form
+        # the analyst-style prompt was written to expect. Before this fix
+        # the prior was silently dropped because the adapter's signature
+        # didn't have a flashback_prior parameter.
+        user_text = self._weave_prior_into_user_text(
+            user_text, flashback_prior, prev_context
+        )
 
         try:
             conversation = [
@@ -189,17 +181,12 @@ class VideoLLaMA3Adapter(BaseVideoAdapter):
                     **inputs,
                     max_new_tokens=380,
                     min_new_tokens=40,
-                    do_sample=True,
-                    temperature=0.35,
-                    top_p=0.9,
+                    do_sample=False,          # deterministic: reproducible category predictions
                     repetition_penalty=1.12,
                     no_repeat_ngram_size=4,
                 )
             latency = time.time() - start
 
-            # Per-sample decode: trim prompt tokens from each output row.
-            # This matches the official VideoLLaMA3 inference pattern and avoids
-            # empty captions from batch-level shape[-1] slicing on early EOS.
             input_ids = inputs["input_ids"]
             generated_ids = [
                 out[len(inp):] for inp, out in zip(input_ids, output_ids)
@@ -211,8 +198,6 @@ class VideoLLaMA3Adapter(BaseVideoAdapter):
             )
             caption = decoded[0].strip() if decoded else ""
             if not caption:
-                # Fallback: some model/template variants produce empty trimmed spans
-                # even when full decode contains the response.
                 full = self.processor.batch_decode(
                     output_ids,
                     skip_special_tokens=True,
