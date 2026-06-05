@@ -181,7 +181,7 @@ class VideoLLaMA3Adapter(BaseVideoAdapter):
                     **inputs,
                     max_new_tokens=380,
                     min_new_tokens=40,
-                    do_sample=False,          # deterministic: reproducible category predictions
+                    do_sample=False,         
                     repetition_penalty=1.12,
                     no_repeat_ngram_size=4,
                 )

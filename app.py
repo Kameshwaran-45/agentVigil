@@ -416,12 +416,18 @@ def page_process(embedder, db, agent, flashback_filter):
     with st.spinner(f"Loading {model_cfg['display_name']}..."):
         perception = get_perception_engine(model_key)
 
-    run_pipeline(
-        tmp_path, video_name, info,
-        perception, embedder, db, agent, flashback_filter,
-        prompt_stem=prompt_stem,
-        camera_id=camera_id,
-    )
+    try:
+        run_pipeline(
+            tmp_path, video_name, info,
+            perception, embedder, db, agent, flashback_filter,
+            prompt_stem=prompt_stem,
+            camera_id=camera_id,
+        )
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
 
 def run_pipeline(
@@ -440,7 +446,7 @@ def run_pipeline(
         output_dir = os.path.join(
             os.getenv("AGENTVIGIL_TEMP_DIR", tempfile.gettempdir()),
             "agentvigil",
-            "temp_workspace",
+            f"temp_workspace_{video_name}",
         )
         os.makedirs(output_dir, exist_ok=True)
         chunks = extract_chunks_and_frames(video_path, output_dir)
@@ -584,6 +590,25 @@ def run_pipeline(
                     "Retrieved scene priors (similarity-ranked from memory):\\n"
                     + "\\n".join(lines)
                 )
+
+                # Stage D: category shortlist — constrain the VLM to the
+                # gate's retrieved categories to kill the "magnet" effect
+                # (RoadAccidents/Assault/Vandalism absorbing everything).
+                # Matches benchmark.py Stage D so the live app and the
+                # evaluated pipeline classify identically.
+                shortlist = []
+                for c in top_cats[:K]:
+                    if c and c not in shortlist and c != "Normal_Videos_event":
+                        shortlist.append(c)
+                if shortlist:
+                    fb_prior += (
+                        "\\n\\nMOST LIKELY CATEGORIES for this scene (from retrieval): "
+                        + ", ".join(shortlist)
+                        + ".\\nStrongly prefer one of these categories if the footage "
+                        "supports it. Only choose a different category if the footage "
+                        "clearly shows something else. Use Normal_Videos_event only if "
+                        "no anomaly is visible."
+                    )
 
         caption, latency = perception.caption_chunk(
             cinfo["frame_paths"],
@@ -777,6 +802,9 @@ def run_pipeline(
             "VLM Compute Saved",
             f"{len(skipped_chunks) * (sum(latencies)/max(len(latencies), 1)):.0f}s",
         )
+
+    # Clean up extracted frame JPEGs for this video.
+    shutil.rmtree(output_dir, ignore_errors=True)
 
 
 # ═════════════════════════════════════════════════════════════════════
