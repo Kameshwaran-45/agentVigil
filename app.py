@@ -15,6 +15,7 @@ CHANGES FROM ORIGINAL:
 """
 
 import os
+import shutil
 import re
 import time
 import html
@@ -51,7 +52,7 @@ st.set_page_config(
     page_title="AgentVigil",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown("""
@@ -247,7 +248,7 @@ def extract_summary_for_context(caption: str) -> str:
     if not caption:
         return ""
     m = re.search(
-        r"Summary:\s*(.+?)(?:\n\s*EVENT:|$)",
+        r"Summary:\s*(.+?)(?:\n?\s*(?:SEVERITY|EVENT):|$)",
         caption,
         flags=re.IGNORECASE | re.DOTALL,
     )
@@ -443,11 +444,21 @@ def run_pipeline(
         "⏳ Stage 0: Adaptive Chunking & Frame Extraction...",
         expanded=False,
     ) as s0:
-        output_dir = os.path.join(
+        base_workspace = os.path.join(
             os.getenv("AGENTVIGIL_TEMP_DIR", tempfile.gettempdir()),
             "agentvigil",
-            f"temp_workspace_{video_name}",
         )
+        os.makedirs(base_workspace, exist_ok=True)
+
+        # Clean up stale workspaces from PREVIOUS runs (not this one).
+        # This keeps the current run's frames alive for the View Frames
+        # gallery while preventing unbounded accumulation across runs.
+        this_workspace_name = f"temp_workspace_{video_name}"
+        for old in os.listdir(base_workspace):
+            if old.startswith("temp_workspace_") and old != this_workspace_name:
+                shutil.rmtree(os.path.join(base_workspace, old), ignore_errors=True)
+
+        output_dir = os.path.join(base_workspace, this_workspace_name)
         os.makedirs(output_dir, exist_ok=True)
         chunks = extract_chunks_and_frames(video_path, output_dir)
         total_frames = sum(c["num_frames"] for c in chunks.values())
@@ -591,11 +602,7 @@ def run_pipeline(
                     + "\\n".join(lines)
                 )
 
-                # Stage D: category shortlist — constrain the VLM to the
-                # gate's retrieved categories to kill the "magnet" effect
-                # (RoadAccidents/Assault/Vandalism absorbing everything).
-                # Matches benchmark.py Stage D so the live app and the
-                # evaluated pipeline classify identically.
+                # Stage D: category shortlist 
                 shortlist = []
                 for c in top_cats[:K]:
                     if c and c not in shortlist and c != "Normal_Videos_event":
@@ -686,31 +693,60 @@ def run_pipeline(
             mc4.metric("CLIP Score", f"{cinfo.get('clip_score', 'N/A')}")
 
             frame_paths = cinfo.get("frame_paths", [])
+            
+            VLM_FRAMES = 16
+            if len(frame_paths) > VLM_FRAMES:
+                import numpy as _np
+                _idx = _np.linspace(0, len(frame_paths) - 1, VLM_FRAMES, dtype=int)
+                shown_paths = [frame_paths[i] for i in _idx]
+            else:
+                shown_paths = frame_paths
             with btn_col:
                 st.markdown("&nbsp;", unsafe_allow_html=True)
-                if frame_paths:
+                if shown_paths:
                     with st.popover(
-                        f"🖼️ View Frames ({len(frame_paths)})",
+                        f"🖼️ View Frames ({len(shown_paths)})",
                         width="stretch",
                     ):
                         st.caption(
                             f"**Chunk {cidx}** · "
                             f"{cinfo['start_sec']:.0f}s – {cinfo['end_sec']:.0f}s · "
-                            f"{len(frame_paths)} frames extracted"
+                            f"showing the {len(shown_paths)} frames the model analyzed "
+                            f"(of {len(frame_paths)} extracted)"
                         )
-                        gallery_cols = 5
-                        for start in range(0, len(frame_paths), gallery_cols):
-                            row_paths = frame_paths[start : start + gallery_cols]
+                        gallery_cols = 4
+                        for start in range(0, len(shown_paths), gallery_cols):
+                            row_paths = shown_paths[start : start + gallery_cols]
                             row_cols = st.columns(len(row_paths))
                             for k, fp in enumerate(row_paths):
-                                row_cols[k].image(
-                                    fp,
-                                    caption=f"f{start + k}",
-                                    width="stretch",
-                                )
+                                if os.path.exists(fp):
+                                    row_cols[k].image(
+                                        fp,
+                                        caption=f"f{start + k}",
+                                        width="stretch",
+                                    )
+                                else:
+                                    row_cols[k].caption("frame expired")
 
-            # ── Caption ─────────────────────────────────────────────
-            st.markdown(f"**Caption:** {caption}")
+            
+            import re as _re
+            _cap = caption or ""
+            # Description = everything before "Summary:" / "SEVERITY:" / "EVENT:"
+            _desc = _re.split(r"(?i)\b(?:summary|severity|event)\s*:",
+                              _cap, maxsplit=1)[0]
+            _desc = _re.sub(r"(?i)^\s*detailed\s*:\s*", "", _desc).strip()
+            _summary_m = _re.search(r"(?is)summary:\s*(.+?)(?:\n?\s*(?:severity|event):|$)", _cap)
+            _summary = _summary_m.group(1).strip() if _summary_m else ""
+
+            st.markdown("**What the model saw (description):**")
+            st.markdown(_desc if _desc else "_No description returned._")
+            if _summary:
+                st.markdown(f"**Summary:** {_summary}")
+            st.caption(
+                f"Predicted event: **{event_type}**  ·  "
+                f"Severity (from anomaly score {analysis['anomaly_score']}): "
+                f"**{analysis['severity']}**"
+            )
 
             if analysis.get("evidence"):
                 st.markdown("**Evidence:**")
@@ -802,10 +838,6 @@ def run_pipeline(
             "VLM Compute Saved",
             f"{len(skipped_chunks) * (sum(latencies)/max(len(latencies), 1)):.0f}s",
         )
-
-    # Clean up extracted frame JPEGs for this video.
-    shutil.rmtree(output_dir, ignore_errors=True)
-
 
 # ═════════════════════════════════════════════════════════════════════
 # PAGE: ALERTS
